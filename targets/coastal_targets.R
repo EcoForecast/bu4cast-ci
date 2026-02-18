@@ -493,16 +493,16 @@ if (nrow(all_targets) == 0) {
 
   message("Writing updated targets back to S3...")
   arrow::write_csv_arrow(new_data, sink = s3_read$path(filename))
-
-  message("Pinging health check...")
-  tryCatch(
-    RCurl::getURL("https://hc-ping.com/af0bdaf6-3ec8-434b-bafd-d8fecc0508af"),
-    error = function(e) message("Health check ping failed: ", e$message)
-  )
 }
 
 if (exists("modis_files")) {
   suppressWarnings(try(unlink(modis_files), silent = TRUE))
 }
+
+message("Pinging health check...")
+  tryCatch(
+    RCurl::getURL("https://hc-ping.com/af0bdaf6-3ec8-434b-bafd-d8fecc0508af"),
+    error = function(e) message("Health check ping failed: ", e$message)
+    )
 
 message("Coastal targets script complete!")
