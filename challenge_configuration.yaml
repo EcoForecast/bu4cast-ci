@@ -77,9 +77,12 @@ target_groups:
   Coastal:
     target_name: "coastal"
     targets_filepath: "challenges/project_id=bu4cast/targets/coastal-targets.csv"
+    targets_corrected_filepath: "challenges/project_id=bu4cast/targets/coastal-targets-corrected.csv"
     site_metadata_filepath: "bu4cast-ci-read/challenges/project_id=bu4cast/metadata/coastal-targets-sites.csv"
     targets_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/targets/coastal-targets.csv"
     targets_sites_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/coastal-targets-sites.csv"
+    health_check_url: "https://hc-ping.com/af0bdaf6-3ec8-434b-bafd-d8fecc0508af"
+    health_check_url_c: "https://hc-ping.com/323ad66e-b20d-4b41-b2f5-06df0bac6085"
     variable: ['chlora_buoy', 'chlora_cci']
     duration: ['P1D', 'P1D', 'P1D']
     buoy_lat: 43.022942490079

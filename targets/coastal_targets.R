@@ -367,64 +367,6 @@ progress_msg("CCI download", 0, total_days)
     }
   }
 }
-
-## Calculate correction factors dynamically from existing paired data
-message("Calculating dynamic correction factors...")
-
-if (!is.null(old_data) && nrow(old_data) > 0) {
-
-  paired_hist <- old_data %>%
-    dplyr::filter(variable %in% c("chlora_buoy", "chlora_cci")) %>%
-    dplyr::mutate(date = as.Date(substr(datetime, 1, 10))) %>%
-    dplyr::select(variable, date, observation) %>%
-    dplyr::filter(!is.na(observation), observation > 0) %>%
-    tidyr::pivot_wider(
-      names_from  = variable,
-      values_from = observation,
-      values_fn   = list(observation = mean)
-    ) %>%
-    dplyr::filter(
-      !is.na(chlora_buoy), !is.na(chlora_cci),
-      chlora_buoy > 0.001
-    ) %>%
-    dplyr::mutate(
-      ratio = chlora_cci / chlora_buoy,
-      month = lubridate::month(date)
-    ) %>%
-    dplyr::filter(ratio <= 5 & ratio >= 1/5)  # threshold on raw ratio first
-
-  # calculate exclude dates as dates that failed the raw threshold
-  exclude_dates <- old_data %>%
-    dplyr::filter(variable %in% c("chlora_buoy", "chlora_cci")) %>%
-    dplyr::mutate(date = as.Date(substr(datetime, 1, 10))) %>%
-    dplyr::select(variable, date, observation) %>%
-    dplyr::filter(!is.na(observation), observation > 0) %>%
-    tidyr::pivot_wider(
-      names_from  = variable,
-      values_from = observation,
-      values_fn   = list(observation = mean)
-    ) %>%
-    dplyr::filter(!is.na(chlora_buoy), !is.na(chlora_cci)) %>%
-    dplyr::mutate(
-      ratio = chlora_cci / chlora_buoy
-    ) %>%
-    dplyr::filter(ratio > 5 | ratio < 1/5 | chlora_buoy <= 0.001) %>%
-    dplyr::pull(date) %>%
-    unique()
-
-  message("Exclude dates calculated: ", length(exclude_dates))
-
-  correction_factor <- paired_hist %>%
-    dplyr::group_by(month) %>%
-    dplyr::summarise(
-      median_ratio = median(ratio, na.rm = TRUE),
-      .groups = "drop"
-    )
-  
-} else {
-  correction_factor <- NULL
-  exclude_dates     <- as.Date(character(0))
-}
           
 ## Format
 message("Formatting to standard format...")
@@ -479,21 +421,6 @@ if (!exists("k_cci") || is.na(k_cci) || k_cci == 0) {
     dplyr::mutate(
       chlorophyll = dplyr::if_else(is.nan(chlorophyll), NA_real_, chlorophyll)
     )
-
-  # apply monthly correction factor if available
-  if (!is.null(correction_factor)) {
-    cci_daily <- cci_daily %>%
-      dplyr::mutate(month = lubridate::month(date)) %>%
-      dplyr::left_join(correction_factor, by = "month") %>%
-      dplyr::mutate(
-        chlorophyll = dplyr::if_else(
-          !is.na(median_ratio) & median_ratio > 0,
-          chlorophyll / median_ratio,
-          chlorophyll
-        )
-      ) %>%
-      dplyr::select(-month, -median_ratio)
-  }
 
   # filter exclude dates and minimum buoy chlorophyll
   cci_daily <- cci_daily %>%
@@ -563,7 +490,7 @@ if (nrow(all_targets) == 0) {
 
 message("Pinging health check...")
 tryCatch(
-  RCurl::getURL("https://hc-ping.com/af0bdaf6-3ec8-434b-bafd-d8fecc0508af"),
+  RCurl::getURL(config$target_groups$Coastal$health_check_url),
   error = function(e) message("Health check ping failed: ", e$message)
 )
 
