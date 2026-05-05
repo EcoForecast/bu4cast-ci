@@ -1,0 +1,33 @@
+name: Coastal + Urban Null Models
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  coastal:
+    runs-on: ubuntu-latest
+    container: eco4cast/rocker-neon4cast:latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate forecasts
+        shell: Rscript {0}
+        run: |
+          source("baseline_models/run_coastal_baselines.R")
+
+  urban:
+    runs-on: ubuntu-latest
+    container: eco4cast/rocker-neon4cast:latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate forecasts
+        shell: Rscript {0}
+        run: |
+          source("baseline_models/run_urban_baselines.R")
