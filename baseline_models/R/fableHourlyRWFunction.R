@@ -16,16 +16,18 @@ RW_hourly_forecast <- function(site, var, h, reference_date,
 
   targets_use <- targets %>%
     dplyr::mutate(
-      datetime = lubridate::as_datetime(datetime),
+      datetime = lubridate::floor_date(lubridate::as_datetime(datetime), "hour"),
       observation = ifelse(observation <= 0, NA, observation),
       observation = ifelse(observation > 3 * quantile(observation, 0.99, na.rm = TRUE), NA, observation)
     ) %>%
     dplyr::filter(site_id == site, variable == var) %>%
+    dplyr::group_by(datetime, site_id, variable) %>%
+    dplyr::summarise(observation = mean(observation, na.rm = TRUE), .groups = "drop") %>%
     tsibble::as_tsibble(key = c("variable", "site_id"), index = "datetime") %>%
     tsibble::fill_gaps(.end = reference_end - lubridate::hours(1)) %>%
     dplyr::filter(datetime < forecast_starts$start_dt)
 
-  if (nrow(targets_use) == 0 || forecast_starts$h_total <= 0) {
+  if (nrow(targets_use) == 0 || is.na(forecast_starts$h_total) || forecast_starts$h_total <= 0) {
     message("no targets available or h <= 0, skipping")
     return(data.frame(
       variable = character(), site_id = character(),
