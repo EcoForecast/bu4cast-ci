@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     container: eco4cast/rocker-neon4cast:latest
     env:
-      OSN_KEY: ${{ secrets.OSN_KEY }}
-      OSN_SECRET: ${{ secrets.OSN_SECRET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.OSN_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.OSN_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - name: Generate forecasts
