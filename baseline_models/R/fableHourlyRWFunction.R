@@ -38,12 +38,20 @@ RW_hourly_forecast <- function(site, var, h, reference_date,
 
   RW_model <- targets_use %>% fabletools::model(RW = fable::RW(observation))
 
-  forecast <- RW_model %>% fabletools::generate(
-    h = as.numeric(forecast_starts$h_total),
-    bootstrap = TRUE,
-    times = boot_number
-  )
+  forecast <- tryCatch({
+    RW_model %>% fabletools::generate(
+      h = as.numeric(forecast_starts$h_total),
+      bootstrap = TRUE,
+      times = boot_number
+    )
+  }, error = function(e) {
+    message("generate() failed for ", site, " ", var, ": ", e$message, ", skipping")
+    return(data.frame(
+      variable = character(), site_id = character(),
+      .model = character(), datetime = lubridate::ymd_hms(),
+      .rep = character(), .sim = numeric()
+    ))
+  })
 
   message("hourly forecast finished")
   return(forecast)
-}
