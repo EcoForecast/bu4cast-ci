@@ -55,3 +55,4 @@ RW_hourly_forecast <- function(site, var, h, reference_date,
 
   message("hourly forecast finished")
   return(forecast)
+  }
