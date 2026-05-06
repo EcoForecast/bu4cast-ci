@@ -7,7 +7,7 @@ RW_hourly_forecast <- function(site, var, h, reference_date,
   reference_end <- lubridate::as_datetime(reference_date + lubridate::days(1))
 
   forecast_starts <- targets %>%
-    dplyr::mutate(datetime = lubridate::as_datetime(datetime)) %>%
+    dplyr::mutate(datetime = lubridate::floor_date(lubridate::as_datetime(datetime), "hour")) %>%
     dplyr::filter(!is.na(observation), site_id == site, variable == var) %>%
     dplyr::summarise(start_dt = max(datetime) + lubridate::hours(1)) %>%
     dplyr::mutate(h_total = as.numeric(difftime(reference_end, start_dt, units = "hours")) + h)
