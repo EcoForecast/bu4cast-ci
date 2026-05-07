@@ -10,8 +10,11 @@ RW_hourly_forecast <- function(site, var, h, reference_date,
     dplyr::mutate(datetime = lubridate::floor_date(lubridate::as_datetime(datetime), "hour")) %>%
     dplyr::filter(!is.na(observation), site_id == site, variable == var) %>%
     dplyr::summarise(start_dt = max(datetime) + lubridate::hours(1)) %>%
-    dplyr::mutate(h_total = as.numeric(difftime(reference_end, start_dt, units = "hours")) + h)
-
+    dplyr::mutate(
+      start_dt = if_else(start_dt < reference_end - lubridate::hours(h), reference_end, start_dt),
+      h_total = as.numeric(difftime(reference_end, start_dt, units = "hours")) + h
+    )
+  
   message(site, " ", var, " hourly RW (ref=", reference_date, ")")
 
   targets_use <- targets %>%
