@@ -56,3 +56,4 @@ RW_daily_forecast <- function(site, var, h, reference_date,
 
 message("daily forecast finished")
 return(forecast)
+}
