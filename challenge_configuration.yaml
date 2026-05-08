@@ -34,6 +34,10 @@ target_groups:
     targets_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/targets/urban-targets.csv"
     targets_sites_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/urban-targets-sites.csv"
     targets_units_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/urban-targets-units.csv"
+    null_start_date: "2024-01-01"
+    health_checks:
+      climatology_null: "https://hc-ping.com/3fde281d-409b-4eed-b497-46dc1c64b9ae"
+      random_walk_null: "https://hc-ping.com/9358fc47-fcb7-4438-b64b-f0ceff521824"
     variable: ['PM2.5_P1H','PM2.5_P1D','PM10_P1H','PM10_P1D','NO2_P1H','NO2_P1D','O3']
     #max_horizon: [35, 35, 35]
     duration: ['PT1H','P1D','PT1H','P1D','PT1H','P1D','PT1H']
@@ -83,6 +87,10 @@ target_groups:
     targets_sites_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/coastal-targets-sites.csv"
     health_check_url: "https://hc-ping.com/af0bdaf6-3ec8-434b-bafd-d8fecc0508af"
     health_check_url_c: "https://hc-ping.com/323ad66e-b20d-4b41-b2f5-06df0bac6085"
+    null_start_date: "2024-01-01"
+    health_checks:
+      climatology_null: "https://hc-ping.com/2b129dd0-ede7-45dc-8dac-a4347e399463"
+      random_walk_null: "https://hc-ping.com/a6e24ff5-827d-491c-b679-527a92af63c7"
     variable: ['chlora_buoy', 'chlora_cci']
     duration: ['P1D', 'P1D', 'P1D']
     buoy_lat: 43.022942490079
