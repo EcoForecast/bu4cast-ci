@@ -1,5 +1,5 @@
 ## Climatology Null Model for Coastal Thrust
-## Defined as a function + called by run_coastal_baselines.R
+## Called by run_coastal_baselines.R
 
 run_coastal_climatology <- function(reference_date, config, targets_all) {
   library(tidyverse)
@@ -35,7 +35,7 @@ run_coastal_climatology <- function(reference_date, config, targets_all) {
 
   forecast_dates_df <- tibble(datetime = forecast_dates, doy = forecast_doy)
 
-  # Build complete grid w/ every site x variable x forecast date, then join w/ climatology
+  # Build grid w every site x variable x forecast date and join w climatology
   all_combos <- target_clim %>% distinct(site_id, variable)
 
   combined <- crossing(all_combos, forecast_dates_df) %>%

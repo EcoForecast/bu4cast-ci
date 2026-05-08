@@ -1,5 +1,5 @@
 ## Random Walk Null Model for Urban Thrust
-## Defined as a function + called by run_urban_baselines.R
+# Called by run_urban_baselines.R
 
 run_urban_random_walk <- function(reference_date, config, targets_all) {
   library(tidyverse)
@@ -20,8 +20,6 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
   }
 
   # Daily (P1D)
-
-  # Assigned globally so RW_daily_forecast_bu4cast can find it
   targets <<- targets_raw %>%
     filter(duration == "P1D") %>%
     mutate(datetime = as_date(datetime))
@@ -35,7 +33,7 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
            h = 35,
            reference_date = reference_date)
 
-  RW_daily <- purrr::pmap_dfr(site_var_daily, RW_daily_forecast_bu4cast)
+  RW_daily <- purrr::pmap_dfr(site_var_daily, RW_daily_forecast)
 
   RW_daily_EFI <- RW_daily %>%
     as_tibble() %>%
@@ -53,7 +51,6 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
            reference_datetime = as_datetime(reference_datetime))
 
   # Hourly (PT1H)
-
   targets <<- targets_raw %>%
     filter(duration == "PT1H") %>%
     mutate(datetime = as_datetime(datetime))
@@ -82,9 +79,9 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
     select(model_id, datetime, reference_datetime, site_id, family, parameter,
            variable, prediction, project_id, duration)
 
-  # Combine and submit
+  # Combine/upload
 
-  # Compute per-variable upper caps from training data (initially predictions were sometimes negative and very large, > +/-2000)
+  # Compute per-variable upper caps from training data (initially predictions were sometimes negative and huge, > 2000)
   var_caps <- targets_raw %>%
     group_by(variable) %>%
     summarise(cap = 3 * quantile(observation[observation > 0], 0.99, na.rm = TRUE),

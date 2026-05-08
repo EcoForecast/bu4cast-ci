@@ -4,8 +4,8 @@ library(aws.s3)
 library(yaml)
 library(httr)
 
-source("baseline_models/R/bu4castRWDailyFunction.R")
-source("baseline_models/R/fableHourlyRWFunction.R")
+source("baseline_models/R/randomWalkDailyFunction.R")
+source("baseline_models/R/randomWalkHourlyFunction.R")
 source("baseline_models/models/urban_climatology.R")
 source("baseline_models/models/urban_random_walk.R")
 
@@ -14,8 +14,6 @@ Sys.setenv("AWS_DEFAULT_REGION" = "")
 config <- yaml::read_yaml("challenge_configuration.yaml")
 null_start_date <- as_date(config$target_groups$Urban$null_start_date)
 base_url <- gsub("https://", "", config$endpoint)
-
-print(paste0("Running urban baselines at ", Sys.time()))
 
 # Read target
 targets_url <- paste0(config$endpoint, "/", config$s3_bucket_read, "/",
@@ -28,10 +26,10 @@ metadata_url <- paste0(config$endpoint, "/", config$s3_bucket_read, "/",
                        config$target_groups$Urban$site_metadata_filepath)
 sites_metadata <- readr::read_csv(metadata_url)
 
-# Reference dates = null_start_date -> yesterday
+# Reference dates = null_start_date to yesterday
 all_dates <- seq(null_start_date, Sys.Date() - 1, by = "day")
 
-# Pull reference dates from file names in bucket
+# Get reference dates from file names
 get_existing_dates <- function(model_name) {
   tryCatch({
     files <- aws.s3::get_bucket_df(
@@ -62,7 +60,7 @@ message(length(missing), " urban climatology dates to run")
 for (ref_date in as.list(missing)) {
   run_urban_climatology(as_date(ref_date), config, targets_all, sites_metadata)
 }
-httr::GET(config$target_groups$Urban$health_checks$climatology_null)
+httr::GET(config$target_groups$Urban$health_checks$climatology_null) # health check
 
 # Random walk backfill
 existing <- get_existing_dates("randomWalk")
@@ -71,4 +69,4 @@ message(length(missing), " urban random walk dates to run")
 for (ref_date in as.list(missing)) {
   run_urban_random_walk(as_date(ref_date), config, targets_all)
 }
-httr::GET(config$target_groups$Urban$health_checks$random_walk_null)
+httr::GET(config$target_groups$Urban$health_checks$random_walk_null) # health check

@@ -1,5 +1,5 @@
 ## Climatology Null Model for Urban Thrust
-## Defined as a function + called by run_urban_baselines.R
+# Called by run_urban_baselines.R
 
 run_urban_climatology <- function(reference_date, config, targets_all, sites_metadata) {
   library(tidyverse)
@@ -9,8 +9,8 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date, remove negatives and extreme outliers
-  big_urban_data <- targets_all %>%
+  # Filter training data to <= reference_date, remove negatives and extreme outliers (urban target had some negative observations)
+  urban_data <- targets_all %>%
     filter(datetime <= as_datetime(reference_date)) %>%
     group_by(variable) %>%
     mutate(observation = ifelse(observation <= 0, NA, observation),
@@ -20,13 +20,12 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
            hour_of_day = hour(datetime),
            year = year(datetime))
 
-  if (nrow(big_urban_data) == 0) {
+  if (nrow(urban_data) == 0) {
     message("No training data for ", reference_date, ", skipping")
     return(invisible(NULL))
   }
 
-  # Active sites
-
+  # Active sites (tagged in target)
   last_year <- year(reference_date) - 1
 
   active_sites_for <- function(active_col, start_col) {
@@ -52,14 +51,14 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
   active_P1D_variables <- c("PM2.5_P1D", "PM10_P1D")
   active_P1H_variables <- c("PM2.5_P1H", "PM10_P1H", "NO2_P1H", "O3")
 
-  # Climatology statistics
+  # Climatology stats
 
   start_date     <- reference_date + days(1)
   end_date       <- reference_date + days(35)
   forecast_dates <- seq(as.POSIXct(start_date), as.POSIXct(end_date), by = "1 day")
   forecast_times <- seq(as.POSIXct(start_date), as.POSIXct(end_date), by = "hour")
 
-  clim_daily <- big_urban_data %>%
+  clim_daily <- urban_data %>%
     filter(duration == "P1D",
            site_id %in% active_P1D_sites,
            variable %in% active_P1D_variables) %>%
@@ -69,7 +68,7 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
               .groups = "drop") %>%
     mutate(mean_value = ifelse(is.nan(mean_value), NA, mean_value))
 
-  clim_hourly <- big_urban_data %>%
+  clim_hourly <- urban_data %>%
     filter(duration == "PT1H",
            site_id %in% active_P1H_sites,
            variable %in% active_P1H_variables) %>%
@@ -80,7 +79,6 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
     mutate(mean_value = ifelse(is.nan(mean_value), NA, mean_value))
 
   # Forecast grids
-
   daily_grid <- expand.grid(
     site_id = active_P1D_sites,
     datetime = forecast_dates,
@@ -119,8 +117,7 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
     mutate(family = "normal", duration = "PT1H") %>%
     ungroup()
 
-  # Format and submit
-
+  # Format/upload
   combined <- bind_rows(combined_daily, combined_hourly) %>%
     mutate(reference_datetime = as_datetime(reference_date),
            model_id = "climatology",

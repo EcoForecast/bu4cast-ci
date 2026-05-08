@@ -1,5 +1,5 @@
 ## Random Walk Null Model for Coastal Thrust
-## Defined as a function + called by run_coastal_baselines.R
+# Called by run_coastal_baselines.R
 
 run_coastal_random_walk <- function(reference_date, config, targets_all) {
   library(tidyverse)
@@ -10,7 +10,7 @@ run_coastal_random_walk <- function(reference_date, config, targets_all) {
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date, assigned globally so random walk can find it
+  # Filter training data to <= reference_date
   targets <<- targets_all %>%
     filter(datetime <= reference_date,
            variable == "chlora_cci_corrected")
@@ -31,7 +31,7 @@ run_coastal_random_walk <- function(reference_date, config, targets_all) {
            h = horizon,
            reference_date = reference_date)
 
-  RW_forecasts <- purrr::pmap_dfr(site_var_combinations, RW_daily_forecast_bu4cast)
+  RW_forecasts <- purrr::pmap_dfr(site_var_combinations, RW_daily_forecast)
 
   if (nrow(RW_forecasts) == 0) {
     message("No forecasts generated for ", reference_date, ", skipping")
