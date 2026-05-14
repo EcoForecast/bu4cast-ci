@@ -17,7 +17,7 @@ target_metadata_bucket: 'challenges/project_id=bu4cast/metadata'
 field_sites_path: 'challenges/project_id=bu4cast/metadata/field_sites.csv'
 student_resources_bucket: 'challenges/project_id=bu4cast/students'
 drivers_bucket: 'challenges/project_id=bu4cast/drivers'
-gefs_start_date: "2024-12-01"
+gefs_start_date: "2025-12-01"
 #archive_bucket: bio230014-bucket01/challenges/archive
 #model_metadata_bucket: bio230014-bucket01/challenges/metadata/model_id
 #model_metadata_gsheet: https://docs.google.com/spreadsheets/d/1f177dpaxLzc4UuQ4_SJV9JWIbQPlilVnEztyvZE6aSU/edit?usp=sharing
