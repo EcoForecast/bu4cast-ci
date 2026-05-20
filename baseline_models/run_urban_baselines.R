@@ -34,7 +34,7 @@ get_existing_dates <- function(model_name) {
   tryCatch({
     files <- aws.s3::get_bucket_df(
       bucket = config$s3_bucket_write,
-      prefix = paste0(config$forecasts_bucket, "/null-models/urban-"),
+      prefix = paste0(config$forecasts_bucket, "/urban-"),
       base_url = base_url,
       use_https = TRUE,
       region = "",
