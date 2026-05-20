@@ -34,7 +34,7 @@ target_groups:
     targets_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/targets/urban-targets.csv"
     targets_sites_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/urban-targets-sites.csv"
     targets_units_weblink: "https://minio-s3.apps.shift.nerc.mghpcc.org/bu4cast-ci-read/challenges/project_id=bu4cast/metadata/urban-targets-units.csv"
-    null_start_date: "2024-01-01"
+    null_start_date: "2025-07-01"
     health_checks:
       climatology_null: "https://hc-ping.com/3fde281d-409b-4eed-b497-46dc1c64b9ae"
       random_walk_null: "https://hc-ping.com/9358fc47-fcb7-4438-b64b-f0ceff521824"
