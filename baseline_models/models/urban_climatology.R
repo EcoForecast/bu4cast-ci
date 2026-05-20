@@ -135,7 +135,7 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
 
   aws.s3::put_object(
     file = forecast_file,
-    object = paste0(config$forecasts_bucket, "/null-models/", forecast_file),
+    object = paste0(config$forecasts_bucket, forecast_file),
     bucket = config$s3_bucket_write,
     base_url = gsub("https://", "", config$endpoint),
     use_https = TRUE,
