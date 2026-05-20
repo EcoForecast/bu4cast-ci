@@ -10,9 +10,9 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date
+  # Filter training data to < reference_date
   targets_raw <- targets_all %>%
-    filter(datetime <= as_datetime(reference_date))
+    filter(datetime < as_datetime(reference_date))
 
   if (nrow(targets_raw) == 0) {
     message("No training data for ", reference_date, ", skipping")
