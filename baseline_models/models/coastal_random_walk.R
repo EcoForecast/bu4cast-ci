@@ -10,9 +10,9 @@ run_coastal_random_walk <- function(reference_date, config, targets_all) {
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date
+  # Filter training data to < reference_date
   targets <<- targets_all %>%
-    filter(datetime <= reference_date,
+    filter(datetime < reference_date,
            variable == "chlora_cci_corrected")
 
   if (nrow(targets) == 0 || all(is.na(targets$observation))) {
