@@ -8,7 +8,7 @@ endpoint: 'https://minio-s3.apps.shift.nerc.mghpcc.org'
 noaa_endpoint: sdsc.osn.xsede.org
 #submissions_endpoint: s3-west.nrp-nautilus.io
 #scores_bucket: bio230014-bucket01/challenges/scores
-forecasts_bucket: 'challenges/project_id=bu4cast/forecasts/submissions'
+forecasts_bucket: 'challenges/project_id=bu4cast/submissions'
 #summaries_bucket: bio230014-bucket01/challenges/forecasts
 #submissions_bucket: submissions
 #noaa_forecast_bucket: bio230014-bucket01/neon4cast-drivers/noaa/gefs-v12
