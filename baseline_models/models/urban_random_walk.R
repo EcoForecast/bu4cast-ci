@@ -10,9 +10,9 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date
+  # Filter training data to < reference_date
   targets_raw <- targets_all %>%
-    filter(datetime <= as_datetime(reference_date))
+    filter(datetime < as_datetime(reference_date))
 
   if (nrow(targets_raw) == 0) {
     message("No training data for ", reference_date, ", skipping")
@@ -103,7 +103,7 @@ run_urban_random_walk <- function(reference_date, config, targets_all) {
 
   aws.s3::put_object(
     file = forecast_file,
-    object = paste0(config$forecasts_bucket, "/null-models/", forecast_file),
+    object = paste0(config$forecasts_bucket, "/", forecast_file),
     bucket = config$s3_bucket_write,
     base_url = gsub("https://", "", config$endpoint),
     use_https = TRUE,

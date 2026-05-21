@@ -9,9 +9,9 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
 
   reference_date <- as_date(reference_date)
 
-  # Filter training data to <= reference_date, remove negatives and extreme outliers (urban target had some negative observations)
+  # Filter training data to < reference_date, remove negatives and extreme outliers (urban target had some negative observations)
   urban_data <- targets_all %>%
-    filter(datetime <= as_datetime(reference_date)) %>%
+    filter(datetime < as_datetime(reference_date)) %>%
     group_by(variable) %>%
     mutate(observation = ifelse(observation <= 0, NA, observation),
            observation = ifelse(observation > 3 * quantile(observation, 0.99, na.rm = TRUE), NA, observation)) %>%
@@ -135,7 +135,7 @@ run_urban_climatology <- function(reference_date, config, targets_all, sites_met
 
   aws.s3::put_object(
     file = forecast_file,
-    object = paste0(config$forecasts_bucket, "/null-models/", forecast_file),
+    object = paste0(config$forecasts_bucket, "/", forecast_file),
     bucket = config$s3_bucket_write,
     base_url = gsub("https://", "", config$endpoint),
     use_https = TRUE,
