@@ -25,25 +25,29 @@ all_dates <- seq(null_start_date, Sys.Date() - 1, by = "day")
 
 # Get reference dates from file names 
 get_existing_dates <- function(model_name) {
-  tryCatch({
-    files <- aws.s3::get_bucket_df(
-      bucket = config$s3_bucket_write,
-      prefix = paste0(config$forecasts_bucket, "/coastal-"),
-      base_url = base_url,
-      use_https = TRUE,
-      region = "",
-      max = Inf
-    )
-    if (nrow(files) == 0) return(as_date(character(0)))
-    files %>%
-      pull(Key) %>%
-      .[stringr::str_detect(., model_name)] %>%
-      stringr::str_extract("\\d{4}-\\d{2}-\\d{2}") %>%
-      as_date() %>%
-      na.omit()
-  }, error = function(e) {
-    as_date(character(0))
-  })
+  get_dates_from_prefix <- function(prefix) {
+    tryCatch({
+      files <- aws.s3::get_bucket_df(
+        bucket = config$s3_bucket_write,
+        prefix = paste0(prefix, "/coastal-"),
+        base_url = base_url,
+        use_https = TRUE,
+        region = "",
+        max = Inf
+      )
+      if (nrow(files) == 0) return(as_date(character(0)))
+      files %>%
+        pull(Key) %>%
+        .[stringr::str_detect(., model_name)] %>%
+        stringr::str_extract("\\d{4}-\\d{2}-\\d{2}") %>%
+        as_date() %>%
+        na.omit()
+    }, error = function(e) as_date(character(0)))
+  }
+  unique(c(
+    get_dates_from_prefix(config$forecasts_bucket),
+    get_dates_from_prefix("challenges/project_id=bu4cast/raw-submissions")
+  ))
 }
 
 # Climatology backfill
