@@ -274,15 +274,14 @@ if(length(submissions) > 0){
 
       } else {
 
-        submission_timestamp <- paste0(submission_dir,"/T", time_stamp, "_", basename(submissions[i]))
-        fs::file_copy(submissions[i], submission_timestamp)
-        raw_bucket_object <- paste0("s3_store/",config$forecasts_bucket,"/raw/",basename(submission_timestamp))
+        #submission_timestamp <- paste0(submission_dir,"/T", time_stamp, "_", basename(submissions[i]))
+        #fs::file_copy(submissions[i], submission_timestamp)
+        raw_submissions_object <- file.path(config$raw_submissions_bucket, curr_submission)
+        #raw_bucket_object <- paste0("s3_store/",config$forecasts_bucket,"/raw/",basename(submission_timestamp))
 
-        minioclient::mc_cp(submission_timestamp, paste0(dirname(raw_bucket_object),"/", basename(submission_timestamp)))
-
-        if(length(minioclient::mc_ls(raw_bucket_object)) > 0){
-          minioclient::mc_rm(file.path("submit",config$submissions_bucket,curr_submission))
-        }
+        #minioclient::mc_cp(submission_timestamp, paste0(dirname(raw_bucket_object),"/", basename(submission_timestamp)))
+        minioclient::mc_cp(paste0(config$submissions_write_bucket, curr_submission),
+                           raw_submissions_object)
 
       }
     }
