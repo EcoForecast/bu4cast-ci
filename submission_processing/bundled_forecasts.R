@@ -38,6 +38,7 @@ print('mc access works')
 
 remote_path <- paste0("osn/", forecast_parquet_bucket)
 contents <- mc_ls(remote_path, recursive = TRUE, details = TRUE)
+print(names(contents))
 data_paths <- contents |> filter(!is_folder) |> pull(path)
 
 # model paths are paths with at least one reference_datetime containing data files
