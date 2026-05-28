@@ -12,18 +12,24 @@ library(yaml)
 handlers(global = TRUE)
 handlers("cli")
 
-config <- read_yaml("challenge_configuration.yaml")
-
-forecast_parquet_bucket <- paste0(config$forecasts_bucket, "/parquet/project_id=", config$project_id, "/")
-forecast_bundled_parquet_bucket <- paste0(config$forecasts_bucket, "/bundled-parquet/")
-forecasts_bucket_base <- str_split(config$forecasts_bucket, "/", simplify = TRUE)[1]
-
-
 install_mc()
-mc_alias_set("osn", config$endpoint, Sys.getenv("OSN_KEY"), Sys.getenv("OSN_SECRET"))
+config <- read_yaml("challenge_configuration.yaml")
+print('Read in config')
+
+# Define bucket locations
+forecast_parquet_bucket <- paste0(config$forecasts_bucket, "/project_id=", config$project_id, "/parquet")
+forecast_bundled_parquet_bucket <- paste0(config$forecasts_bucket, "/project_id=", config$project_id, "/bundled-parquet/")
+forecasts_bucket_base <- str_split(config$forecasts_bucket, "/", simplify = TRUE)[1]
+print(forecasts_bucket_base)
+
+# Prep Minio Access
+minioclient::mc_alias_set(config$s3_bucket_write,
+                          config$submissions_endpoint,
+                          Sys.getenv("OSN_KEY"),
+                          Sys.getenv("OSN_SECRET"))
 # mc_alias_set("nrp", "s3-west.nrp-nautilus.io", Sys.getenv("EFI_NRP_KEY"), Sys.getenv("EFI_NRP_SECRET"))
 
-duckdb_secrets(endpoint = config$endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
+duckdb_secrets(endpoint = config$submissions_endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
 
 
 
