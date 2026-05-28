@@ -28,6 +28,7 @@ minioclient::mc_alias_set(config$s3_bucket_write,
                           Sys.getenv("OSN_KEY"),
                           Sys.getenv("OSN_SECRET"))
 # mc_alias_set("nrp", "s3-west.nrp-nautilus.io", Sys.getenv("EFI_NRP_KEY"), Sys.getenv("EFI_NRP_SECRET"))
+print('mc access works')
 
 duckdb_secrets(endpoint = config$submissions_endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
 
