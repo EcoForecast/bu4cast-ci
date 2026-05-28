@@ -17,9 +17,12 @@ config <- read_yaml("challenge_configuration.yaml")
 print('Read in config')
 
 # Define bucket locations
-forecast_parquet_bucket <- paste0(config$forecasts_bucket, "/project_id=", config$project_id, "/parquet")
-forecast_bundled_parquet_bucket <- paste0(config$forecasts_bucket, "/project_id=", config$project_id, "/bundled-parquet/")
-forecasts_bucket_base <- str_split(config$forecasts_bucket, "/", simplify = TRUE)[1]
+# Not sure what these should be
+forecast_parquet_bucket <- sub("^s3://", "", config$sub_parquet_bucket)
+forecast_bundled_parquet_bucket <- paste0(config$s3_bucket_write, "/challenges/project_id=", config$project_id, "/bundled-parquet/")
+forecasts_bucket_base <- paste0(config$s3_bucket_write, '/', config$submissions_bucket)
+print(forecast_parquet_bucket)
+print(forecast_bundled_parquet_bucket)
 print(forecasts_bucket_base)
 
 # Prep Minio Access
