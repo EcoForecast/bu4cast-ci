@@ -75,7 +75,7 @@ print(model_paths)
 # bundled count at start
 count <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
                       s3_endpoint = config$endpoint,
-                      anonymous = TRUE) |>
+                      anonymous = FALSE) |>
   count()
 print(count)
 
