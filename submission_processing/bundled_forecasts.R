@@ -26,7 +26,7 @@ print(forecast_bundled_parquet_bucket)
 print(forecasts_bucket_base)
 
 # Prep Minio Access
-minioclient::mc_alias_set(config$s3_bucket_write,
+minioclient::mc_alias_set("osn",
                           config$submissions_endpoint,
                           Sys.getenv("OSN_KEY"),
                           Sys.getenv("OSN_SECRET"))
@@ -38,19 +38,22 @@ print('mc access works')
 
 remote_path <- paste0("osn/", forecast_parquet_bucket)
 contents <- mc_ls(remote_path, recursive = TRUE, details = TRUE)
+print('Contents')
+print(head(contents))
+print(names(contents))
 
-test1 <- mc_ls("bu4cast-ci-write", recursive = TRUE, details = TRUE)
-test2 <- mc_ls("bu4cast-ci-write/", recursive = TRUE, details = TRUE)
-test3 <- mc_ls("bu4cast-ci-write/challenges/project_id=bu4cast/parquet", recursive = TRUE, details = TRUE)
-print('Test1')
-print(head(test1))
-print(names(test1))
-print('Test2')
-print(head(test2))
-print(names(test2))
-print('Test3')
-print(head(test3))
-print(names(test3))
+# test1 <- mc_ls("bu4cast-ci-write", recursive = TRUE, details = TRUE)
+# test2 <- mc_ls("bu4cast-ci-write/", recursive = TRUE, details = TRUE)
+# test3 <- mc_ls("bu4cast-ci-write/challenges/project_id=bu4cast/parquet", recursive = TRUE, details = TRUE)
+# print('Test1')
+# print(head(test1))
+# print(names(test1))
+# print('Test2')
+# print(head(test2))
+# print(names(test2))
+# print('Test3')
+# print(head(test3))
+# print(names(test3))
 
 data_paths <- contents |> filter(!is_folder) |> pull(path)
 
