@@ -33,7 +33,28 @@ minioclient::mc_alias_set("osn",
 # mc_alias_set("nrp", "s3-west.nrp-nautilus.io", Sys.getenv("EFI_NRP_KEY"), Sys.getenv("EFI_NRP_SECRET"))
 print('mc access works')
 
-duckdb_secrets(endpoint = config$submissions_endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
+# Connect to DuckDB - helps write to S3 bucket
+key_id   <- Sys.getenv("OSN_KEY", "")
+secret   <- Sys.getenv("OSN_SECRET", "")
+
+conn <- dbConnect(duckdb())
+DBI::dbExecute(conn, "INSTALL httpfs;")
+DBI::dbExecute(conn, "LOAD httpfs;")
+
+sql <- sprintf("
+  CREATE OR REPLACE SECRET s3_minio_osn (
+    TYPE S3,
+    KEY_ID '%s',
+    SECRET '%s',
+    ENDPOINT 'https://minio-s3.apps.shift.nerc.mghpcc.org',
+    REGION 'us-east-1',
+    USE_SSL TRUE
+  )
+", key_id, secret)
+
+DBI::dbExecute(conn, sql)
+
+#duckdb_secrets(endpoint = config$submissions_endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
 print('duckdb access works')
 
 remote_path <- paste0("osn/", forecast_parquet_bucket)
