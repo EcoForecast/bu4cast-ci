@@ -73,12 +73,14 @@ model_paths <-
 print(model_paths)
 
 # bundled count at start
-count <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
-                      s3_endpoint = config$endpoint,
-                      anonymous = FALSE) |>
-  count()
-print(count)
-
+# count <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
+#                       s3_endpoint = config$endpoint,
+#                       anonymous = FALSE) |>
+#   count()
+# print(count)
+bundled_remote_path <- paste0("osn/", forecast_bundled_parquet_bucket)
+bundled_contents <- mc_ls(bundled_remote_path, recursive = TRUE, details = TRUE)
+count <- if (nrow(bundled_contents) == 0) 0 else sum(!bundled_contents$is_folder)
 
 bundle_me <- function(path) {
 
