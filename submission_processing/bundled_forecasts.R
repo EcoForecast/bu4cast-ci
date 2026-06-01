@@ -39,7 +39,7 @@ print('mc access works')
 remote_path <- paste0("osn/", forecast_parquet_bucket)
 contents <- mc_ls(remote_path, recursive = TRUE, details = TRUE)
 
-test1 <- mc_ls("osn", recursive = FALSE, details = TRUE)
+test1 <- mc_ls("osn", recursive = TRUE, details = TRUE)
 test2 <- mc_ls("osn/bu4cast-ci-write", recursive = TRUE, details = TRUE)
 test3 <- mc_ls("osn/bu4cast-ci-write/challenges/project_id=bu4cast/parquet", recursive = TRUE, details = TRUE)
 print('Test1')
