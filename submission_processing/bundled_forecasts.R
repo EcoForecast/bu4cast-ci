@@ -2,6 +2,8 @@ remotes::install_github("cboettig/duckdbfs", upgrade=FALSE)
 
 library(tidyverse)
 library(duckdbfs)
+library(duckdb)
+library(DBI)
 library(minioclient)
 library(bench)
 library(glue)
