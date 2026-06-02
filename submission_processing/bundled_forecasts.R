@@ -91,7 +91,7 @@ bundle_me <- function(path) {
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
   
-  open_dataset(path, conn = con) |>
+  open_dataset(path, conn = conn) |>
     filter( !is.na(model_id),
             !is.na(parameter),
             !is.na(prediction)) |>
@@ -102,7 +102,7 @@ bundle_me <- function(path) {
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
   old <- tryCatch({
-  open_dataset(bundled_path, conn = con) |>
+  open_dataset(bundled_path, conn = conn) |>
      write_dataset("tmp_old.parquet")
   old <- open_dataset("tmp_old.parquet")
   },
