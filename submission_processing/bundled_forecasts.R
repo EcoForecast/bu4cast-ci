@@ -89,13 +89,16 @@ bundle_me <- function(path) {
   con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("forecasts/parquet"), "forecasts/bundled-parquet")
-
+  print(bundled_path)
+  
   open_dataset(path, conn = con) |>
     filter( !is.na(model_id),
             !is.na(parameter),
             !is.na(prediction)) |>
     write_dataset("tmp_new.parquet")
 
+  print('created tmp_new.parquet')
+  
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
   old <- tryCatch({
@@ -107,6 +110,8 @@ bundle_me <- function(path) {
   error = function(e) NULL
   )
 
+  print('checked for old parquet')
+  
   # these are both local, so we can stream back.
   new <- open_dataset("tmp_new.parquet")
 
@@ -125,21 +130,29 @@ bundle_me <- function(path) {
 
     new <- union(old, new)
   }
-
+  
+  print('merged new and old')
+  
   ## once running consistently we can "append" with union_all instead of union
   # uses less RAM. since mc_rm / mc_mv removes anything we have already read
   new |>
     write_dataset(bundled_path,
                   options = list("PER_THREAD_OUTPUT false"))
 
+  print('write merged to bundled path')
+  
   #We should now archive anything we have bundled:
   mc_path <- path |> str_replace(fixed("s3://"), "osn/")
   dest_path <- mc_path |>
     str_replace(fixed("forecasts/parquet"), "forecasts/archive-parquet")
   mc_mv(mc_path, dest_path, recursive = TRUE)
 
+  print('archive')
+  
   # clears up empty folders (not necessary?)
   mc_rm(mc_path, recursive = TRUE)
+  
+  print('empty folders')
 
   duckdbfs::close_connection(con); gc()
 
