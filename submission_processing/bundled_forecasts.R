@@ -79,7 +79,7 @@ print(model_paths)
 #   count()
 # print(count)
 bundled_remote_path <- paste0("osn/", forecast_bundled_parquet_bucket)
-bundled_contents <- mc_ls(bundled_remote_path, recursive = TRUE, details = TRUE)
+bundled_contents <- mc_ls(bundled_remote_path, recursive = FALSE, details = TRUE)
 count <- if (nrow(bundled_contents) == 0) 0 else sum(!bundled_contents$is_folder)
 print(count)
 
@@ -88,7 +88,7 @@ bundle_me <- function(path) {
   print(path)
   con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
-  bundled_path <- path |> str_replace(fixed("forecasts/parquet"), "forecasts/bundled-parquet")
+  bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
   
   open_dataset(path, conn = con) |>
@@ -144,7 +144,7 @@ bundle_me <- function(path) {
   #We should now archive anything we have bundled:
   mc_path <- path |> str_replace(fixed("s3://"), "osn/")
   dest_path <- mc_path |>
-    str_replace(fixed("forecasts/parquet"), "forecasts/archive-parquet")
+    str_replace(fixed("/parquet"), "/archive-parquet")
   mc_mv(mc_path, dest_path, recursive = TRUE)
 
   print('archive')
