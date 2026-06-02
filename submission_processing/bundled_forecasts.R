@@ -67,7 +67,7 @@ data_paths <- contents |> filter(!is_folder) |> pull(path)
 model_paths <-
   data_paths |>
   str_replace_all("reference_date=\\d{4}-\\d{2}-\\d{2}/.*", "") |>
-  str_replace("^osn\\/", paste0(config$endpoint, "/", config$s3_bucket_write, "/")) |>
+  str_replace("^osn\\/", "s3://") |>
   unique()
 
 print(model_paths)
@@ -91,18 +91,18 @@ bundle_me <- function(path) {
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
   
-  open_dataset(path, conn = conn)# |>
-    # filter( !is.na(model_id),
-    #         !is.na(parameter),
-    #         !is.na(prediction)) |>
-    # write_dataset("tmp_new.parquet")
+  open_dataset(path, conn = con) |>
+    filter( !is.na(model_id),
+            !is.na(parameter),
+            !is.na(prediction)) |>
+    write_dataset("tmp_new.parquet")
 
   print('created tmp_new.parquet')
   
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
   old <- tryCatch({
-  open_dataset(bundled_path, conn = conn) |>
+  open_dataset(bundled_path, conn = con) |>
      write_dataset("tmp_old.parquet")
   old <- open_dataset("tmp_old.parquet")
   },
