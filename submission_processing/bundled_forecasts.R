@@ -91,11 +91,11 @@ bundle_me <- function(path) {
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
   
-  open_dataset(path, conn = conn) |>
-    filter( !is.na(model_id),
-            !is.na(parameter),
-            !is.na(prediction)) |>
-    write_dataset("tmp_new.parquet")
+  open_dataset(path, conn = conn)# |>
+    # filter( !is.na(model_id),
+    #         !is.na(parameter),
+    #         !is.na(prediction)) |>
+    # write_dataset("tmp_new.parquet")
 
   print('created tmp_new.parquet')
   
