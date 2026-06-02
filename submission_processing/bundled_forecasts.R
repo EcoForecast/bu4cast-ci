@@ -67,7 +67,7 @@ data_paths <- contents |> filter(!is_folder) |> pull(path)
 model_paths <-
   data_paths |>
   str_replace_all("reference_date=\\d{4}-\\d{2}-\\d{2}/.*", "") |>
-  str_replace("^osn\\/", paste0(config$endpoint, "/")) |>
+  str_replace("^osn\\/", paste0(config$endpoint, "/", config$s3_bucket_write, "/")) |>
   unique()
 
 print(model_paths)
