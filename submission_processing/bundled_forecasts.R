@@ -38,6 +38,8 @@ print('mc access works')
 # Connect to DuckDB - helps write to S3 bucket
 key_id   <- Sys.getenv("OSN_KEY", "")
 secret   <- Sys.getenv("OSN_SECRET", "")
+print(nchar(key_id))
+print(nchar(secret))
 
 conn <- dbConnect(duckdb())
 DBI::dbExecute(conn, "INSTALL httpfs;")
