@@ -96,8 +96,10 @@ bundle_me <- function(path) {
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
+  path_with_glob <- paste0(path, "*.parquet")
+  print(path_with_glob)
   
-  open_dataset(path, conn = con) |>
+  open_dataset(path_with_glob, conn = con) |>
     filter( !is.na(model_id),
             !is.na(parameter),
             !is.na(prediction)) |>
