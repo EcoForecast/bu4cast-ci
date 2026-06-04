@@ -99,7 +99,7 @@ bundle_me <- function(path) {
   path_with_glob <- paste0(path, "*.parquet")
   print(path_with_glob)
   
-  open_dataset(path_with_glob, conn = con) |>
+  read_parquet(path_with_glob, conn = con) |>
     filter( !is.na(model_id),
             !is.na(parameter),
             !is.na(prediction)) |>
