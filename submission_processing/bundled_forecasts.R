@@ -99,24 +99,42 @@ bundle_me <- function(path) {
   path_with_glob <- paste0(path, "*.parquet")
   print(path_with_glob)
   
-  read_parquet(path_with_glob, conn = con) |>
-    filter( !is.na(model_id),
-            !is.na(parameter),
-            !is.na(prediction)) |>
-    write_dataset("tmp_new.parquet")
+  DBI::dbExecute(con, paste0(
+    "CREATE OR REPLACE TABLE tmp_data AS ",
+    "SELECT * FROM read_parquet('", path_with_glob, "', HIVE_PARTITIONING=TRUE) ",
+    "WHERE model_id IS NOT NULL AND parameter IS NOT NULL AND prediction IS NOT NULL"
+  ))
+  
+  # open_dataset(path, conn = con) |>
+  #   filter( !is.na(model_id),
+  #           !is.na(parameter),
+  #           !is.na(prediction)) |>
+  #   write_dataset("tmp_new.parquet")
 
   print('created tmp_new.parquet')
   
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
+  
   old <- tryCatch({
-  open_dataset(bundled_path, conn = con) |>
-     write_dataset("tmp_old.parquet")
-  old <- open_dataset("tmp_old.parquet")
+    bundled_path_with_glob <- paste0(bundled_path, "*.parquet")
+    DBI::dbExecute(con, paste0(
+      "CREATE OR REPLACE TABLE tmp_old AS ",
+      "SELECT * FROM read_parquet('", bundled_path_with_glob, "', HIVE_PARTITIONING=TRUE)"
+    ))
+    old <- open_dataset("tmp_old", conn = con)
   },
-  # no new data
   error = function(e) NULL
   )
+  
+  # old <- tryCatch({
+  # open_dataset(bundled_path, conn = con) |>
+  #    write_dataset("tmp_old.parquet")
+  # old <- open_dataset("tmp_old.parquet")
+  # },
+  # # no new data
+  # error = function(e) NULL
+  # )
 
   print('checked for old parquet')
   
