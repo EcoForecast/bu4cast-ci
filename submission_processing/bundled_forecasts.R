@@ -106,7 +106,7 @@ bundle_me <- function(path) {
      WHERE model_id IS NOT NULL
        AND parameter IS NOT NULL
        AND prediction IS NOT NULL",
-    glob_path
+    path
   )
   
   DBI::dbExecute(con, sql)
