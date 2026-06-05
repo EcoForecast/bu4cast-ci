@@ -21,6 +21,7 @@ print('Read in config')
 # Define bucket locations
 # Not sure what these should be
 forecast_parquet_bucket <- sub("^s3://", "", config$sub_parquet_bucket)
+forecast_parquet_bucket <- paste0(config$s3_bucket_write, '/', forecast_parquet_bucket)
 forecast_bundled_parquet_bucket <- paste0(config$s3_bucket_write, "/challenges/project_id=", config$project_id, "/bundled-parquet/")
 forecasts_bucket_base <- paste0(config$s3_bucket_write, '/', config$submissions_bucket)
 print(forecast_parquet_bucket)
@@ -91,7 +92,6 @@ names(x)
 
 bundle_me <- function(path) {
 
-  path <- paste0(config$s3_bucket_write, "/", path)
   print(path)
   con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
