@@ -201,6 +201,111 @@ bundle_me <- function(path) {
   })
 }
 
+bundle_me_minio <- function(path) {
+  library(arrow)
+  library(dplyr)
+  library(stringr)
+  
+  print(paste("Processing:", path))
+  
+  # Set up MinIO S3 credentials
+  key_id <- Sys.getenv("OSN_KEY", "")
+  secret <- Sys.getenv("OSN_SECRET", "")
+  
+  # Create bundled path
+  bundled_path <- str_replace(path, fixed("/parquet"), "/bundled-parquet")
+  
+  # Create S3FileSystem with MinIO configuration
+  s3_fs <- S3FileSystem$create(
+    endpoint_override = "https://minio-s3.apps.shift.nerc.mghpcc.org",
+    access_key = key_id,
+    secret_key = secret,
+    region = "us-east-1",
+    # MinIO often requires these additional settings
+    scheme = "https",
+    allow_bucket_creation = FALSE,
+    allow_bucket_deletion = FALSE
+  )
+  
+  print("S3FileSystem created for MinIO")
+  
+  # Extract bucket and key from path
+  # s3://bucket/path/to/files
+  path_parts <- str_split(sub("^s3://", "", path), "/")[[1]]
+  bucket <- path_parts[1]
+  key <- paste(path_parts[-1], collapse = "/")
+  
+  print(paste("Bucket:", bucket))
+  print(paste("Key:", key))
+  
+  # List files using the S3FileSystem
+  tryCatch({
+    # Get file info from the S3 bucket
+    files <- s3_fs$GetFileInfo(paste0(bucket, "/", key, "/"))
+    print(paste("Found", length(files), "items in directory"))
+    
+    # Filter for files (not directories)
+    file_paths <- files[files$type != "Directory", ]$path
+    
+    if(length(file_paths) == 0) {
+      # Try to list recursively
+      selector <- FileSelector$create(
+        paste0(bucket, "/", key, "/"),
+        recursive = TRUE
+      )
+      files <- s3_fs$GetFileInfo(selector)
+      file_paths <- files[files$type != "Directory", ]$path
+    }
+    
+    # Filter for parquet files
+    parquet_files <- file_paths[grepl("\\.parquet$", file_paths)]
+    
+    if(length(parquet_files) == 0) {
+      stop("No parquet files found")
+    }
+    
+    print(paste("Found", length(parquet_files), "parquet files"))
+    
+    # Create full S3 URIs
+    full_paths <- paste0("s3://", parquet_files)
+    
+    # Read the dataset
+    ds <- open_dataset(
+      full_paths,
+      filesystem = s3_fs,
+      partitioning = hive_partitioning(),
+      format = "parquet"
+    )
+    
+    # Filter
+    filtered <- ds %>%
+      filter(!is.na(model_id),
+             !is.na(parameter),
+             !is.na(prediction))
+    
+    # Write bundled data
+    # Extract bucket and key for bundled path
+    bundled_parts <- str_split(sub("^s3://", "", bundled_path), "/")[[1]]
+    bundled_bucket <- bundled_parts[1]
+    bundled_key <- paste(bundled_parts[-1], collapse = "/")
+    
+    write_dataset(
+      filtered,
+      paste0(bundled_bucket, "/", bundled_key, "/bundled.parquet"),
+      filesystem = s3_fs,
+      format = "parquet"
+    )
+    
+    print(paste("Successfully wrote bundled data to:", bundled_path))
+    
+    return(TRUE)
+    
+  }, error = function(e) {
+    print(paste("Error:", e$message))
+    return(FALSE)
+  })
+}
+
 bundle_me_simple <- function(path) {
   library(arrow)
   library(dplyr)
