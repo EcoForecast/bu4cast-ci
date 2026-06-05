@@ -92,7 +92,7 @@ names(x)
 bundle_me <- function(path) {
 
   print(path)
-  #con = duckdbfs::cached_connection(tempfile())
+  con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
