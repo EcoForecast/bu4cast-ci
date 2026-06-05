@@ -99,11 +99,16 @@ bundle_me <- function(path) {
   path_with_glob <- paste0(path, "*.parquet")
   print(path_with_glob)
   
-  DBI::dbExecute(con, paste0(
-    "CREATE OR REPLACE TABLE tmp_data AS ",
-    "SELECT * FROM read_parquet('", path_with_glob, "', HIVE_PARTITIONING=TRUE) ",
-    "WHERE model_id IS NOT NULL AND parameter IS NOT NULL AND prediction IS NOT NULL"
-  ))
+  sql <- sprintf("
+    CREATE OR REPLACE TABLE tmp_data AS
+    SELECT *
+    FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
+    WHERE model_id IS NOT NULL
+      AND parameter IS NOT NULL
+      AND prediction IS NOT NULL
+  ", path_with_glob)
+  
+  DBI::dbExecute(con, sql)
   
   # open_dataset(path, conn = con) |>
   #   filter( !is.na(model_id),
