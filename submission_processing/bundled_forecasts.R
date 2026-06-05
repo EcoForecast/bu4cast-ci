@@ -542,7 +542,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me_simple(x)
+    out <- bundle_me_minio(x)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
