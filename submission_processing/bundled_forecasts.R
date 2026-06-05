@@ -83,50 +83,53 @@ bundled_contents <- mc_ls(bundled_remote_path, recursive = TRUE, details = TRUE)
 count <- if (nrow(bundled_contents) == 0) 0 else sum(!bundled_contents$is_folder)
 print(count)
 
-x <- mc_ls("osn/bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1D/variable=NO2_P1H/model_id=tg_dgam",
-           recursive = TRUE, details = TRUE)
-print(x)
-nrow(x)
-names(x)
+# x <- mc_ls("osn/bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1D/variable=NO2_P1H/model_id=tg_dgam",
+#            recursive = TRUE, details = TRUE)
+# print(x)
+# nrow(x)
+# names(x)
 
 bundle_me <- function(path) {
 
-  print(path)
+  print(paste0("Path: ", path))
   con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
-  print(bundled_path)
+  print(paste0("Bundled Path: ", bundled_path))
   glob_path <- paste0(path, "**/*.parquet")
-  print(glob_path)
-  new_path <- path |> str_replace(fixed("s3://"), paste0("s3://", config$s3_bucket_write, "/"))
+  print(paste0("Glob Path: ", glob_path))
   
-  # sql <- sprintf(
-  #   "CREATE OR REPLACE TABLE tmp_data AS
-  #    SELECT *
-  #    FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
-  #    WHERE model_id IS NOT NULL
-  #      AND parameter IS NOT NULL
-  #      AND prediction IS NOT NULL",
-  #   osn_path
-  # )
-  # 
-  # DBI::dbExecute(con, sql)
-  # 
-  # print('created tmp_data')
-  # 
-  # DBI::dbExecute(con,
-  #                "COPY tmp_data TO 'tmp_new.parquet' (FORMAT PARQUET)"
-  # )
+  tryCatch({
+    # Create filtered new data
+    # Using read_parquet with glob pattern and HIVE_PARTITIONING
+    sql_query <- sprintf(
+      "CREATE OR REPLACE TABLE tmp_new_data AS 
+       SELECT * 
+       FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
+       WHERE model_id IS NOT NULL
+         AND parameter IS NOT NULL
+         AND prediction IS NOT NULL",
+      parquet_glob
+    )
+    
+    DBI::dbExecute(con, sql_query)
+    
+    # Write the filtered data to a local temp parquet file
+    DBI::dbExecute(con, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
+    
+    print('created tmp_new.parquet')
+    
+  }, error = function(e) {
+    stop(paste("Failed to read and filter data:", e$message))
+  })
+  
+  # open_dataset(path, conn = con) |>
+  #   filter( !is.na(model_id),
+  #           !is.na(parameter),
+  #           !is.na(prediction)) |>
+  #   write_dataset("tmp_new.parquet")
   # 
   # print('created tmp_new.parquet')
-  
-  open_dataset(new_path, conn = con) |>
-    filter( !is.na(model_id),
-            !is.na(parameter),
-            !is.na(prediction)) |>
-    write_dataset("tmp_new.parquet")
-
-  print('created tmp_new.parquet')
   
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
