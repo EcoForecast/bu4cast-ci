@@ -94,10 +94,12 @@ bundle_me <- function(path, conn) {
   # Ensure httpfs is loaded
   tryCatch({
     DBI::dbExecute(conn, "LOAD httpfs;")
+    print("dbExecute LOAD ran")
   }, error = function(e) {
     tryCatch({
       DBI::dbExecute(conn, "INSTALL httpfs;")
       DBI::dbExecute(conn, "LOAD httpfs;")
+      print("dbExecute INSTALL and LOAD ran")
     }, error = function(e2) {
       print(paste("Could not load httpfs:", e2$message))
     })
@@ -117,11 +119,11 @@ bundle_me <- function(path, conn) {
     # Use simpler pattern - just directory listing
     sql_query <- sprintf(
       "CREATE OR REPLACE TABLE tmp_new_data AS 
-       SELECT * 
-       FROM read_parquet('%s*/*.parquet', HIVE_PARTITIONING=TRUE)
-       WHERE model_id IS NOT NULL
-         AND parameter IS NOT NULL
-         AND prediction IS NOT NULL",
+      SELECT * 
+      FROM read_parquet('%s*/*.parquet', HIVE_PARTITIONING=TRUE)
+      WHERE model_id IS NOT NULL
+      AND parameter IS NOT NULL
+      AND prediction IS NOT NULL",
       path
     )
     
