@@ -98,7 +98,7 @@ bundle_me <- function(path) {
   print(bundled_path)
   glob_path <- paste0(path, "**/*.parquet")
   print(glob_path)
-  new_path <- path |> str_replace(fixed("s3://"), paste0("s3://", config$s3_bucket_write))
+  new_path <- path |> str_replace(fixed("s3://"), paste0("s3://", config$s3_bucket_write, "/"))
   
   # sql <- sprintf(
   #   "CREATE OR REPLACE TABLE tmp_data AS
