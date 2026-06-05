@@ -92,40 +92,41 @@ names(x)
 bundle_me <- function(path) {
 
   print(path)
-  con = duckdbfs::cached_connection(tempfile())
+  #con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
   glob_path <- paste0(path, "**/*.parquet")
   print(glob_path)
+  osn_path <- path |> str_replace(fixed("s3://"), "osn/")
   
-  sql <- sprintf(
-    "CREATE OR REPLACE TABLE tmp_data AS
-     SELECT *
-     FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
-     WHERE model_id IS NOT NULL
-       AND parameter IS NOT NULL
-       AND prediction IS NOT NULL",
-    path
-  )
-  
-  DBI::dbExecute(con, sql)
-  
-  print('created tmp_data')
-  
-  DBI::dbExecute(con,
-                 "COPY tmp_data TO 'tmp_new.parquet' (FORMAT PARQUET)"
-  )
-  
-  print('created tmp_new.parquet')
-  
-  # open_dataset(path, conn = con) |>
-  #   filter( !is.na(model_id),
-  #           !is.na(parameter),
-  #           !is.na(prediction)) |>
-  #   write_dataset("tmp_new.parquet")
+  # sql <- sprintf(
+  #   "CREATE OR REPLACE TABLE tmp_data AS
+  #    SELECT *
+  #    FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
+  #    WHERE model_id IS NOT NULL
+  #      AND parameter IS NOT NULL
+  #      AND prediction IS NOT NULL",
+  #   osn_path
+  # )
+  # 
+  # DBI::dbExecute(con, sql)
+  # 
+  # print('created tmp_data')
+  # 
+  # DBI::dbExecute(con,
+  #                "COPY tmp_data TO 'tmp_new.parquet' (FORMAT PARQUET)"
+  # )
   # 
   # print('created tmp_new.parquet')
+  
+  open_dataset(path, conn = con) |>
+    filter( !is.na(model_id),
+            !is.na(parameter),
+            !is.na(prediction)) |>
+    write_dataset("tmp_new.parquet")
+
+  print('created tmp_new.parquet')
   
   # special filters should not be needed on bundled copy
   # Only if model has bundled entries!
