@@ -21,7 +21,6 @@ print('Read in config')
 # Define bucket locations
 # Not sure what these should be
 forecast_parquet_bucket <- sub("^s3://", "", config$sub_parquet_bucket)
-forecast_parquet_bucket <- paste0(config$s3_bucket_write, '/', forecast_parquet_bucket)
 forecast_bundled_parquet_bucket <- paste0(config$s3_bucket_write, "/challenges/project_id=", config$project_id, "/bundled-parquet/")
 forecasts_bucket_base <- paste0(config$s3_bucket_write, '/', config$submissions_bucket)
 print(forecast_parquet_bucket)
@@ -99,7 +98,7 @@ bundle_me <- function(path) {
   print(bundled_path)
   glob_path <- paste0(path, "**/*.parquet")
   print(glob_path)
-  osn_path <- path |> str_replace(fixed("s3://"), "osn/")
+  new_path <- path |> str_replace(fixed("s3://"), paste0("s3://", config$s3_bucket_write))
   
   # sql <- sprintf(
   #   "CREATE OR REPLACE TABLE tmp_data AS
@@ -121,7 +120,7 @@ bundle_me <- function(path) {
   # 
   # print('created tmp_new.parquet')
   
-  open_dataset(path, conn = con) |>
+  open_dataset(new_path, conn = con) |>
     filter( !is.na(model_id),
             !is.na(parameter),
             !is.na(prediction)) |>
