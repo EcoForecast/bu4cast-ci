@@ -89,10 +89,10 @@ print(count)
 # nrow(x)
 # names(x)
 
-bundle_me <- function(path) {
+bundle_me <- function(path, conn) {
 
   print(paste0("Path: ", path))
-  con = duckdbfs::cached_connection(tempfile())
+  #con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(paste0("Bundled Path: ", bundled_path))
@@ -112,10 +112,10 @@ bundle_me <- function(path) {
       glob_path
     )
     
-    DBI::dbExecute(con, sql_query)
+    DBI::dbExecute(conn, sql_query)
     
     # Write the filtered data to a local temp parquet file
-    DBI::dbExecute(con, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
+    DBI::dbExecute(conn, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
     
     print('created tmp_new.parquet')
     
@@ -140,7 +140,7 @@ bundle_me <- function(path) {
       "CREATE OR REPLACE TABLE tmp_old AS ",
       "SELECT * FROM read_parquet('", bundled_path_with_glob, "', HIVE_PARTITIONING=TRUE)"
     ))
-    old <- open_dataset("tmp_old", conn = con)
+    old <- open_dataset("tmp_old", conn = conn)
   },
   error = function(e) NULL
   )
@@ -198,7 +198,7 @@ bundle_me <- function(path) {
   
   print('empty folders')
 
-  duckdbfs::close_connection(con); gc()
+  #duckdbfs::close_connection(con); gc()
 
   invisible(path)
 }
@@ -213,7 +213,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me(x)
+    out <- bundle_me(x,conn)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
