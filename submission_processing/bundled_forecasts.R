@@ -96,8 +96,8 @@ bundle_me <- function(path) {
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
   bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(bundled_path)
-  path_with_glob <- paste0(path, "**/*.parquet")
-  print(path_with_glob)
+  glob_path <- paste0(path, "**/*.parquet")
+  print(glob_path)
   
   sql <- sprintf(
     "CREATE OR REPLACE TABLE tmp_data AS
