@@ -13,9 +13,6 @@ library(progressr)
 library(yaml)
 handlers(global = TRUE)
 handlers("cli")
-library(arrow)
-library(dplyr)
-library(fs)
 
 install_mc()
 config <- read_yaml("challenge_configuration.yaml")
@@ -92,6 +89,10 @@ print(count)
 # nrow(x)
 # names(x)
 
+library(arrow)
+library(dplyr)
+library(stringr)
+
 bundle_me <- function(path) {
   
   print(paste("Processing:", path))
@@ -108,34 +109,131 @@ bundle_me <- function(path) {
   key_id <- Sys.getenv("OSN_KEY", "")
   secret <- Sys.getenv("OSN_SECRET", "")
   
-  # Configure S3 connection
-  s3 <- s3_bucket(
-    bucket,
-    endpoint_override = "minio-s3.apps.shift.nerc.mghpcc.org",
-    access_key = key_id,
-    secret_key = secret,
-    region = "us-east-1"
+  tryCatch({
+    # Create S3 filesystem directly
+    s3_fs <- S3FileSystem$create(
+      endpoint_override = "minio-s3.apps.shift.nerc.mghpcc.org",
+      access_key = key_id,
+      secret_key = secret,
+      region = "us-east-1",
+      scheme = "https"
+    )
+    
+    print("S3 filesystem created successfully")
+    
+    # List files using FileSelector
+    selector <- FileSelector$create(
+      paste0(prefix, "/"),
+      recursive = TRUE,
+      file_type = "parquet"
+    )
+    
+    files <- s3_fs$GetFileInfo(selector)
+    parquet_files <- files[!files$type == "Directory", ]
+    
+    if(length(parquet_files) == 0) {
+      stop("No parquet files found")
+    }
+    
+    print(paste("Found", length(parquet_files), "parquet files"))
+    
+    # Create full S3 URIs
+    file_paths <- paste0("s3://", bucket, "/", parquet_files$path)
+    
+    # Read all files into a single dataset
+    ds <- open_dataset(
+      file_paths,
+      filesystem = s3_fs,
+      partitioning = hive_partitioning(),
+      format = "parquet"
+    )
+    
+    # Filter
+    filtered <- ds %>%
+      filter(!is.na(model_id),
+             !is.na(parameter),
+             !is.na(prediction))
+    
+    print(paste("Filtered dataset has", nrow(filtered), "rows"))
+    
+    # Create bundled path
+    bundled_prefix <- str_replace(prefix, fixed("/parquet"), "/bundled-parquet")
+    
+    # Check if bundled file already exists
+    bundled_exists <- tryCatch({
+      bundled_selector <- FileSelector$create(
+        paste0(bundled_prefix, "/"),
+        recursive = FALSE
+      )
+      length(s3_fs$GetFileInfo(bundled_selector)) > 0
+    }, error = function(e) FALSE)
+    
+    # Read existing bundled data if it exists
+    if(bundled_exists) {
+      old_ds <- open_dataset(
+        paste0("s3://", bucket, "/", bundled_prefix, "/"),
+        filesystem = s3_fs,
+        format = "parquet"
+      )
+      
+      # Combine (remove duplicates if needed)
+      filtered <- union_all(old_ds, filtered)
+      print("Merged with existing bundled data")
+    }
+    
+    # Write as single parquet file (no partitioning)
+    output_path <- paste0("s3://", bucket, "/", bundled_prefix, "/bundled.parquet")
+    
+    write_dataset(
+      filtered,
+      output_path,
+      filesystem = s3_fs,
+      format = "parquet"
+    )
+    
+    print(paste("Bundled data written to:", output_path))
+    
+    return(TRUE)
+    
+  }, error = function(e) {
+    print(paste("Error:", e$message))
+    stop("Failed to bundle data")
+  })
+}
+
+bundle_me_simple <- function(path) {
+  library(arrow)
+  library(dplyr)
+  
+  print(paste("Processing:", path))
+  
+  # Set up S3 credentials for arrow
+  key_id <- Sys.getenv("OSN_KEY", "")
+  secret <- Sys.getenv("OSN_SECRET", "")
+  
+  # Register S3 configuration globally
+  Sys.setenv(
+    AWS_S3_ENDPOINT = "minio-s3.apps.shift.nerc.mghpcc.org",
+    AWS_ACCESS_KEY_ID = key_id,
+    AWS_SECRET_ACCESS_KEY = secret,
+    AWS_REGION = "us-east-1",
+    AWS_DEFAULT_REGION = "us-east-1"
   )
   
-  # Get the S3 filesystem
-  s3_fs <- s3$filesystem
+  # Create bundled path
+  bundled_path <- str_replace(path, fixed("/parquet"), "/bundled-parquet")
   
-  # List all parquet files recursively
-  all_files <- s3_fs$ls(prefix, recursive = TRUE)
-  parquet_files <- all_files[grepl("\\.parquet$", all_files)]
+  print("Reading source data...")
   
-  if(length(parquet_files) == 0) {
-    stop("No parquet files found")
-  }
-  
-  print(paste("Found", length(parquet_files), "parquet files"))
-  
-  # Read all files into a single dataset
+  # Read the dataset directly with arrow
+  # Arrow will automatically handle hive partitioning
   ds <- open_dataset(
-    s3_fs$path(parquet_files),
+    path,
     partitioning = hive_partitioning(),
     format = "parquet"
   )
+  
+  print(paste("Dataset opened. Schema:", paste(names(ds), collapse = ", ")))
   
   # Filter
   filtered <- ds %>%
@@ -143,51 +241,33 @@ bundle_me <- function(path) {
            !is.na(parameter),
            !is.na(prediction))
   
-  print(paste("Filtered dataset has", nrow(filtered), "rows"))
+  # Count rows to see if we got data
+  row_count <- filtered %>% count() %>% collect() %>% pull(n)
+  print(paste("Filtered to", row_count, "rows"))
   
-  # Create bundled path
-  bundled_path <- str_replace(path, fixed("/parquet"), "/bundled-parquet")
-  
-  # Check if bundled file already exists
+  # Check if bundled data exists
   bundled_exists <- tryCatch({
-    bundled_bucket <- s3_bucket(
-      bucket,
-      endpoint_override = "minio-s3.apps.shift.nerc.mghpcc.org",
-      access_key = key_id,
-      secret_key = secret,
-      region = "us-east-1"
-    )
-    # Check if bundled-parquet directory exists
-    bundled_prefix <- str_replace(prefix, fixed("/parquet"), "/bundled-parquet")
-    length(bundled_bucket$ls(bundled_prefix)) > 0
+    test_ds <- open_dataset(bundled_path, format = "parquet")
+    TRUE
   }, error = function(e) FALSE)
   
-  # Read existing bundled data if it exists
   if(bundled_exists) {
-    bundled_prefix <- str_replace(prefix, fixed("/parquet"), "/bundled-parquet")
-    old_ds <- open_dataset(
-      s3$path(bundled_prefix),
-      format = "parquet"
-    )
-    
-    # Combine (remove duplicates if needed)
+    old_ds <- open_dataset(bundled_path, format = "parquet")
     filtered <- union_all(old_ds, filtered)
     print("Merged with existing bundled data")
   }
   
-  # Write as single parquet file (no partitioning)
+  # Write bundled data
+  print(paste("Writing to:", bundled_path))
+  
   write_dataset(
     filtered,
-    file.path("s3:/", bucket, str_replace(prefix, fixed("/parquet"), "/bundled-parquet"), "bundled.parquet"),
-    filesystem = s3_fs,
-    format = "parquet"
+    bundled_path,
+    format = "parquet",
+    partitioning = NULL  # Single file
   )
   
-  print("Bundled data written successfully")
-  
-  # Archive original files (optional)
-  # You might want to move or delete the original partitioned files
-  
+  print("Bundle complete")
   return(TRUE)
 }
 
@@ -357,7 +437,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me(x)
+    out <- bundle_me_simple(x)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
