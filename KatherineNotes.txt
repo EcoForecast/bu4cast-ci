@@ -1,30 +1,73 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2868
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 ArialMT;}
-{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
-{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
-{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
-{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
-\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+ ----------------------------------------------
+| Katherine Notes from 2025 - 2026 School Year |
+ ----------------------------------------------
 
-\f0\fs24 \cf0 Katherine Notes from 2025 - 2026 School Year\
--------------------------------------------------------------\
-\
-How to Set Public Read/Write Access:\
-\
-Read:\
-\pard\pardeftab720\partightenfactor0
-\cf0 \expnd0\expndtw0\kerning0
-\outl0\strokewidth0 \strokec2 Public Read Access:\
-\
-\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
-\ls1\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
-\outl0\strokewidth0 \strokec2 brew install minio/stable/mc\
-\ls1\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
-\outl0\strokewidth0 \strokec2 mc alias set myminio https://minio-s3.apps.shift.nerc.mghpcc.org ACCESS_KEY SECRET_KEY\
-\ls1\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
-\outl0\strokewidth0 \strokec2 mc anonymous set download myminio/bu4cast-ci-read
-\f1\fs29\fsmilli14667 \
-\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
-\cf0 \
-}
+I've listed below lots of how-tos and other tidbits I picked up along the way when creating the S3 buckets and updating the workflows. If you have any questions, my personal email is katrein2021@gmail.com.
+
+NEXT STEPS:
+- Get Scoring Working -> prep-scoring.R and scoring.R
+- Update StudentHowTo_BUForecastingChallenge.Rmd with the correct organization if it changes
+- Create the Dashboard/Catolog (nice to have)
+
+Bucket Organization:
+--------------------
+
+Read:
+- Most everything is in bu4cast-ci-read/challenges/project_id=bu4cast
+- Drivers contains ...?
+- Metadata contains field site IDs and units
+- Students contains any files the students may want (beyond data)
+- Targets contains the current downloaded data for each topic that can then be used to predict future values
+
+Write:
+- Most everything is in bu4cast-ci-write/challenges/project_id=bu4cast
+- Parquet and Processed_Submissions are created during process_submissions.R
+- Raw_submissions is where all submission files are moved after being successfully processed
+- Submissions should only contain unprocessed and failed processed files (THIS IS THE ONLY PLACE STUDENTS SHOULD BE SUBMITTING)
+
+Setting Up S3 Bucket Notes:
+---------------------------
+
+This is the main link I used:
+https://nerc-project.github.io/nerc-docs/openshift-ai/other-projects/fraud-detection-predictive-ai-app/
+
+How to find Secret and Access Keys:
+-----------------------------------
+
+Project Name: software-application-innovation-lab-sail-projects-fcd6dfa
+Link: https://rhods-dashboard-redhat-ods-applications.apps.shift.nerc.mghpcc.org/projects/software-application-innovation-lab-sail-projects-fcd6dfa?section=connections
+
+Both bu4cast-ci-read and bu4cast-ci-write have the same secret and access keys. To copy them, go to the three dots next to either and click edit. From there, you can scroll down and copy them. 
+These are also the login credentials to the Minio console (https://minio-console.apps.shift.nerc.mghpcc.org/browser/bu4cast-ci-read). The Access Key is the Username and the Secret Key is the password. 
+
+How to Check GB left in S3 Bucket:
+----------------------------------
+
+Sign in to ...
+https://console.apps.shift.nerc.mghpcc.org/k8s/ns/software-application-innovation-lab-sail-projects-fcd6dfa/persistentvolumeclaims/minio-pvc
+** USE MSS-KEYCLOAK AND YOUR BU GOOGLE LOG IN ** (I clicked the wrong thing once and had to figure out how to have it forget the other login)
+
+How to Set Public Read/Write Access:
+------------------------------------
+
+Use these terminal commands (this is all based on Mac, but I assume Linux and Windows are similar).
+Replace ACCESS_KEY and SECRET_KEY with their respective values from "How to find Secret and Access Keys"
+
+Read:
+
+brew install minio/stable/mc
+mc alias set myminio https://minio-s3.apps.shift.nerc.mghpcc.org ACCESS_KEY SECRET_KEY
+mc anonymous set download myminio/bu4cast-ci-read
+
+Write:
+
+brew install minio/stable/mc
+mc alias set myminio https://minio-s3.apps.shift.nerc.mghpcc.org ACCESS_KEY SECRET_KEY
+mc anonymous set upload myminio/bu4cast-ci-write
+
+How to Increase Minio Storage:
+------------------------------
+
+Link: https://coldfront.mss.mghpcc.org/allocation/271/
+
+This has to be done by Prof. Dietze. Change can be requested with the blue "Request Change" button sitting next to the header "Allocation Information".
