@@ -90,7 +90,20 @@ print(count)
 # names(x)
 
 bundle_me <- function(path, conn) {
+  
+  # Ensure httpfs is loaded
+  tryCatch({
+    DBI::dbExecute(conn, "LOAD httpfs;")
+  }, error = function(e) {
+    tryCatch({
+      DBI::dbExecute(conn, "INSTALL httpfs;")
+      DBI::dbExecute(conn, "LOAD httpfs;")
+    }, error = function(e2) {
+      print(paste("Could not load httpfs:", e2$message))
+    })
+  })
 
+  # Get paths set up
   print(paste0("Path: ", path))
   #con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
@@ -99,28 +112,54 @@ bundle_me <- function(path, conn) {
   glob_path <- paste0(path, "**/*.parquet")
   print(paste0("Glob Path: ", glob_path))
   
+  # Try the direct read_parquet approach first
   tryCatch({
-    # Create filtered new data
-    # Using read_parquet with glob pattern and HIVE_PARTITIONING
+    # Use simpler pattern - just directory listing
     sql_query <- sprintf(
       "CREATE OR REPLACE TABLE tmp_new_data AS 
        SELECT * 
-       FROM read_parquet('%s', HIVE_PARTITIONING=TRUE)
+       FROM read_parquet('%s*/*.parquet', HIVE_PARTITIONING=TRUE)
        WHERE model_id IS NOT NULL
          AND parameter IS NOT NULL
          AND prediction IS NOT NULL",
-      glob_path
+      path
+    )
+    
+    print("Executing query...")
+    DBI::dbExecute(conn, sql_query)
+    
+    # Write filtered data to local temp file
+    DBI::dbExecute(conn, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
+    
+    print('Created tmp_new.parquet')
+    
+  }, error = function(e) {
+    print(paste("Error with read_parquet:", e$message))
+    
+    # Try alternative: Use explicit SQL with s3() function
+    print("Trying s3() function...")
+    
+    # Extract bucket and path
+    path_parts <- str_split(sub("^s3://", "", path), "/")[[1]]
+    bucket <- path_parts[1]
+    prefix <- paste(path_parts[-1], collapse = "/")
+    
+    # Use s3() with simpler pattern
+    s3_pattern <- paste0("s3://", bucket, "/", prefix, "*/*.parquet")
+    
+    sql_query <- sprintf(
+      "CREATE OR REPLACE TABLE tmp_new_data AS 
+       SELECT * 
+       FROM s3('%s', HIVE_PARTITIONING=TRUE)
+       WHERE model_id IS NOT NULL
+         AND parameter IS NOT NULL
+         AND prediction IS NOT NULL",
+      s3_pattern
     )
     
     DBI::dbExecute(conn, sql_query)
-    
-    # Write the filtered data to a local temp parquet file
     DBI::dbExecute(conn, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
-    
-    print('created tmp_new.parquet')
-    
-  }, error = function(e) {
-    stop(paste("Failed to read and filter data:", e$message))
+    print('Created tmp_new.parquet using s3()')
   })
   
   # open_dataset(path, conn = con) |>
