@@ -91,6 +91,7 @@ names(x)
 
 bundle_me <- function(path) {
 
+  path <- paste0(config$s3_bucket_write, "/", path)
   print(path)
   con = duckdbfs::cached_connection(tempfile())
   #duckdb_secrets(endpoint = config$endpoint, key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
