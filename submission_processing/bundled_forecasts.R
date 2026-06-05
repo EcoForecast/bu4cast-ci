@@ -109,7 +109,7 @@ bundle_me <- function(path) {
        WHERE model_id IS NOT NULL
          AND parameter IS NOT NULL
          AND prediction IS NOT NULL",
-      parquet_glob
+      glob_path
     )
     
     DBI::dbExecute(con, sql_query)
