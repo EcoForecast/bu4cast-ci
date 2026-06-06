@@ -306,9 +306,6 @@ bundle_me_minio <- function(path) {
   })
 }
 
-library(dplyr)
-library(stringr)
-
 bundle_me_simple <- function(path) {
   
   print(paste("Processing:", path))
@@ -322,22 +319,67 @@ bundle_me_simple <- function(path) {
   
   print(paste("MC Path:", mc_path))
   
-  # List all parquet files
-  all_items <- mc_ls(mc_path, recursive = TRUE, details = TRUE)
+  # List all items - check what mc_ls returns
+  all_items <- mc_ls(mc_path, recursive = TRUE)
   
-  # Filter for parquet files
-  parquet_files <- all_items %>%
-    filter(str_detect(name, "\\.parquet$")) %>%
-    filter(!is_folder) %>%
-    pull(path)
+  print(paste("mc_ls returned", ifelse(is.data.frame(all_items), 
+                                       paste(nrow(all_items), "rows"),
+                                       "not a dataframe")))
   
-  if(length(parquet_files) == 0) {
-    stop("No parquet files found")
+  # Debug: print column names
+  if(is.data.frame(all_items)) {
+    print(paste("Columns:", paste(names(all_items), collapse = ", ")))
+    print("First few rows:")
+    print(head(all_items))
   }
   
-  print(paste("Found", length(parquet_files), "parquet files"))
+  # Filter for parquet files - adjust based on actual column names
+  if(is.data.frame(all_items)) {
+    # Try to find the right column name
+    name_col <- NA
+    if("name" %in% names(all_items)) {
+      name_col <- "name"
+    } else if("key" %in% names(all_items)) {
+      name_col <- "key"
+    } else if("filename" %in% names(all_items)) {
+      name_col <- "filename"
+    } else if(length(names(all_items)) > 0) {
+      # Use first column
+      name_col <- names(all_items)[1]
+    }
+    
+    if(!is.na(name_col)) {
+      print(paste("Using column", name_col, "for filtering"))
+      
+      # Filter for parquet files
+      parquet_files <- all_items %>%
+        filter(grepl("\\.parquet$", .data[[name_col]])) %>%
+        pull(path)
+      
+      print(paste("Found", length(parquet_files), "parquet files"))
+      
+      if(length(parquet_files) == 0) {
+        stop("No parquet files found")
+      }
+      
+    } else {
+      stop("Could not find appropriate column in mc_ls output")
+    }
+  } else {
+    # mc_ls might return a vector
+    if(is.character(all_items)) {
+      parquet_files <- all_items[grepl("\\.parquet$", all_items)]
+      print(paste("Found", length(parquet_files), "parquet files"))
+      
+      if(length(parquet_files) == 0) {
+        stop("No parquet files found")
+      }
+    } else {
+      stop("mc_ls returned unexpected format")
+    }
+  }
   
-  # Process files in batches to avoid memory issues
+  # Process files in batches
   batch_size <- 10
   all_data <- list()
   
@@ -348,13 +390,17 @@ bundle_me_simple <- function(path) {
     print(paste("Processing batch", ceiling(i/batch_size), 
                 "files", i, "to", batch_end))
     
-    # Download and process batch
     batch_data <- lapply(batch_files, function(mc_file) {
       # Create temp file
       temp_file <- tempfile(fileext = ".parquet")
       
       # Download
-      mc_cp(mc_file, temp_file)
+      tryCatch({
+        mc_cp(mc_file, temp_file)
+      }, error = function(e) {
+        print(paste("Failed to download", mc_file, ":", e$message))
+        return(NULL)
+      })
       
       # Read with arrow
       tryCatch({
@@ -395,10 +441,31 @@ bundle_me_simple <- function(path) {
   
   # Check for existing bundled data
   existing_files <- tryCatch({
-    mc_ls(mc_bundled_path, details = TRUE) %>%
-      filter(str_detect(name, "\\.parquet$")) %>%
-      filter(!is_folder) %>%
-      pull(path)
+    existing_items <- mc_ls(mc_bundled_path, recursive = FALSE)
+    
+    if(is.data.frame(existing_items)) {
+      # Filter for parquet files
+      name_col <- NA
+      if("name" %in% names(existing_items)) {
+        name_col <- "name"
+      } else if("key" %in% names(existing_items)) {
+        name_col <- "key"
+      } else if(length(names(existing_items)) > 0) {
+        name_col <- names(existing_items)[1]
+      }
+      
+      if(!is.na(name_col)) {
+        existing_items %>%
+          filter(grepl("\\.parquet$", .data[[name_col]])) %>%
+          pull(path)
+      } else {
+        character()
+      }
+    } else if(is.character(existing_items)) {
+      existing_items[grepl("\\.parquet$", existing_items)]
+    } else {
+      character()
+    }
   }, error = function(e) {
     character()
   })
@@ -409,16 +476,26 @@ bundle_me_simple <- function(path) {
     
     existing_data <- lapply(existing_files, function(mc_file) {
       temp_file <- tempfile(fileext = ".parquet")
-      mc_cp(mc_file, temp_file)
-      df <- arrow::read_parquet(temp_file)
-      unlink(temp_file)
-      return(df)
+      tryCatch({
+        mc_cp(mc_file, temp_file)
+        df <- arrow::read_parquet(temp_file)
+        unlink(temp_file)
+        return(df)
+      }, error = function(e) {
+        print(paste("Error reading existing file", mc_file, ":", e$message))
+        unlink(temp_file)
+        return(NULL)
+      })
     })
     
-    existing_combined <- bind_rows(existing_data)
-    combined <- bind_rows(existing_combined, combined)
+    # Remove NULLs
+    existing_data <- existing_data[!sapply(existing_data, is.null)]
     
-    print(paste("After merging with existing:", nrow(combined), "rows"))
+    if(length(existing_data) > 0) {
+      existing_combined <- bind_rows(existing_data)
+      combined <- bind_rows(existing_combined, combined)
+      print(paste("After merging with existing:", nrow(combined), "rows"))
+    }
   }
   
   # Create bundled directory if it doesn't exist
@@ -429,6 +506,10 @@ bundle_me_simple <- function(path) {
   # Write to local temp file
   temp_output <- tempfile(fileext = ".parquet")
   arrow::write_parquet(combined, temp_output)
+  
+  # Output file size
+  output_size <- file.size(temp_output)
+  print(paste("Local bundled file size:", output_size, "bytes"))
   
   # Upload to S3
   mc_output_path <- paste0(mc_bundled_path, "bundled.parquet")
@@ -441,7 +522,6 @@ bundle_me_simple <- function(path) {
   
   return(TRUE)
 }
-
 
 bundle_me_old <- function(path, conn) {
   
@@ -598,7 +678,167 @@ bundle_me_old <- function(path, conn) {
   invisible(path)
 }
 
-
+bundle_me_robust <- function(path) {
+  
+  print(paste("Processing:", path))
+  
+  # Convert S3 path to mc path
+  mc_path <- str_replace(path, fixed("s3://"), "osn/")
+  
+  # Create bundled path
+  bundled_path <- str_replace(path, fixed("/parquet"), "/bundled-parquet")
+  mc_bundled_path <- str_replace(bundled_path, fixed("s3://"), "osn/")
+  
+  print(paste("MC Path:", mc_path))
+  
+  # List all items - simplest approach
+  all_items <- mc_ls(mc_path, recursive = TRUE)
+  
+  # Debug
+  print(paste("Type of all_items:", typeof(all_items)))
+  
+  # Handle different return types from mc_ls
+  if(is.data.frame(all_items)) {
+    # It's a dataframe
+    parquet_files <- all_items$path[grepl("\\.parquet$", all_items$path)]
+    
+    # If no 'path' column, try other columns
+    if(is.null(all_items$path) && length(all_items) > 0) {
+      # Check all columns for path-like data
+      for(col_name in names(all_items)) {
+        if(any(grepl("\\.parquet$", all_items[[col_name]]))) {
+          parquet_files <- all_items[[col_name]][grepl("\\.parquet$", all_items[[col_name]])]
+          print(paste("Using column", col_name, "for paths"))
+          break
+        }
+      }
+    }
+  } else if(is.character(all_items)) {
+    # It's a character vector
+    parquet_files <- all_items[grepl("\\.parquet$", all_items)]
+  } else if(is.list(all_items)) {
+    # It's a list, try to extract paths
+    parquet_files <- unlist(all_items)[grepl("\\.parquet$", unlist(all_items))]
+  } else {
+    stop("mc_ls returned unexpected format")
+  }
+  
+  if(length(parquet_files) == 0) {
+    stop("No parquet files found")
+  }
+  
+  print(paste("Found", length(parquet_files), "parquet files"))
+  
+  # Process first few files to test
+  if(length(parquet_files) > 5) {
+    test_files <- parquet_files[1:5]
+  } else {
+    test_files <- parquet_files
+  }
+  
+  for(test_file in test_files) {
+    print(paste("Sample file:", test_file))
+  }
+  
+  # Process all files
+  all_data <- list()
+  
+  for(i in seq_along(parquet_files)) {
+    mc_file <- parquet_files[i]
+    
+    if(i %% 10 == 0) {
+      print(paste("Processing file", i, "of", length(parquet_files)))
+    }
+    
+    tryCatch({
+      # Download
+      temp_file <- tempfile(fileext = ".parquet")
+      mc_cp(mc_file, temp_file)
+      
+      # Read
+      df <- arrow::read_parquet(temp_file)
+      
+      # Filter
+      df_filtered <- df %>%
+        filter(!is.na(model_id),
+               !is.na(parameter),
+               !is.na(prediction))
+      
+      all_data[[i]] <- df_filtered
+      
+      # Clean up
+      unlink(temp_file)
+      
+    }, error = function(e) {
+      print(paste("Error processing", mc_file, ":", e$message))
+    })
+  }
+  
+  # Remove NULLs
+  all_data <- all_data[!sapply(all_data, is.null)]
+  
+  if(length(all_data) == 0) {
+    stop("No valid data found in any files")
+  }
+  
+  # Combine
+  combined <- bind_rows(all_data)
+  print(paste("Total rows:", nrow(combined)))
+  
+  # Check for existing bundled data
+  existing_exists <- tryCatch({
+    mc_ls(mc_bundled_path)
+    TRUE
+  }, error = function(e) {
+    FALSE
+  })
+  
+  if(existing_exists) {
+    tryCatch({
+      existing_items <- mc_ls(mc_bundled_path, recursive = FALSE)
+      existing_files <- unlist(existing_items)[grepl("\\.parquet$", unlist(existing_items))]
+      
+      if(length(existing_files) > 0) {
+        print(paste("Found", length(existing_files), "existing bundled files"))
+        
+        # Download and read existing
+        existing_data <- list()
+        for(existing_file in existing_files) {
+          temp_file <- tempfile(fileext = ".parquet")
+          mc_cp(existing_file, temp_file)
+          df <- arrow::read_parquet(temp_file)
+          existing_data[[length(existing_data) + 1]] <- df
+          unlink(temp_file)
+        }
+        
+        existing_combined <- bind_rows(existing_data)
+        combined <- bind_rows(existing_combined, combined)
+        print(paste("After merge:", nrow(combined), "rows"))
+      }
+    }, error = function(e) {
+      print(paste("Error reading existing:", e$message))
+    })
+  }
+  
+  # Ensure directory exists
+  if(!mc_dir_exists(mc_bundled_path)) {
+    mc_mkdir(mc_bundled_path, recursive = TRUE)
+  }
+  
+  # Write and upload
+  temp_output <- tempfile(fileext = ".parquet")
+  arrow::write_parquet(combined, temp_output)
+  
+  mc_output <- paste0(mc_bundled_path, "bundled.parquet")
+  mc_cp(temp_output, mc_output)
+  
+  print(paste("Created:", mc_output, 
+              "Size:", file.size(temp_output), "bytes"))
+  
+  unlink(temp_output)
+  
+  return(TRUE)
+}
 
 
 # We use future_apply framework to show progress while being robust to OOM kils.
@@ -608,7 +848,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me_simple(x)
+    out <- bundle_me_robust(x)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
