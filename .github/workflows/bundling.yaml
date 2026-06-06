@@ -30,7 +30,7 @@ jobs:
       - name: Bundle forecasts
         run: r submission_processing/bundled_forecasts.R
 
-      - name: Bundle summaries
-        run: r submission_processing/bundled_summaries.R
+      # - name: Bundle summaries
+      #   run: r submission_processing/bundled_summaries.R
 
 
