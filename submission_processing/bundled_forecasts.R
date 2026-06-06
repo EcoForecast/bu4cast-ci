@@ -97,15 +97,15 @@ library(duckdb)
 
 con <- dbConnect(duckdb())
 
-# Correct DuckDB CREATE SECRET syntax
+# Correct DuckDB CREATE SECRET syntax (no = signs)
 dbExecute(con, sprintf("
-  CREATE SECRET s3_secret (
+  CREATE SECRET (
     TYPE S3,
-    KEY_ID = '%s',
-    SECRET = '%s',
-    ENDPOINT = 'minio-s3.apps.shift.nerc.mghpcc.org',
-    USE_SSL = true,
-    URL_STYLE = 'path'
+    KEY_ID '%s',
+    SECRET '%s',
+    ENDPOINT 'minio-s3.apps.shift.nerc.mghpcc.org',
+    USE_SSL true,
+    URL_STYLE 'path'
   )
 ", Sys.getenv("OSN_KEY"), Sys.getenv("OSN_SECRET")))
 
