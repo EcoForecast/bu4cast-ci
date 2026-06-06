@@ -11,6 +11,9 @@ library(fs)
 library(future.apply)
 library(progressr)
 library(yaml)
+library(arrow)
+library(dplyr)
+library(stringr)
 handlers(global = TRUE)
 handlers("cli")
 
@@ -89,116 +92,123 @@ print(count)
 # nrow(x)
 # names(x)
 
-library(arrow)
-library(dplyr)
-library(stringr)
+# Create one dataset per model path
+for (path in model_paths) {
+  print(path)
+  
+  df <- open_dataset(
+    path,
+    format = "parquet",
+    hive_partitioning = TRUE
+  ) %>%
+    collect()
+}
+
+print("datasets created")
 
 bundle_me <- function(path) {
   
   print(paste("Processing:", path))
   
-  # Extract bucket and path components
-  path_clean <- sub("^s3://", "", path)
-  bucket <- str_split(path_clean, "/")[[1]][1]
-  prefix <- sub(paste0("^", bucket, "/"), "", path_clean)
+  # Create a new connection for this function call
+  con = duckdbfs::cached_connection(tempfile())
   
-  print(paste("Bucket:", bucket))
-  print(paste("Prefix:", prefix))
+  # Use the same S3 credentials setup
+  on.exit({
+    duckdbfs::close_connection(con)
+    gc()
+  })
   
-  # Set up S3 for arrow
-  key_id <- Sys.getenv("OSN_KEY", "")
-  secret <- Sys.getenv("OSN_SECRET", "")
+  # Create bundled path: replace /parquet/ with /bundled-parquet/
+  bundled_path <- path |> 
+    str_replace(fixed("/parquet/"), "/bundled-parquet/")
   
+  print(paste("Bundled path:", bundled_path))
+  
+  # Use DuckDB to read and filter the data
+  # Create a temporary view from the partitioned parquet data
   tryCatch({
-    # Create S3 filesystem directly
-    s3_fs <- S3FileSystem$create(
-      endpoint_override = "minio-s3.apps.shift.nerc.mghpcc.org",
-      access_key = key_id,
-      secret_key = secret,
-      region = "us-east-1",
-      scheme = "https"
+    # Use DuckDB's read_parquet with glob pattern
+    sql_query <- sprintf(
+      "CREATE OR REPLACE TABLE tmp_new_data AS 
+       SELECT * 
+       FROM read_parquet('%s/**/*.parquet', HIVE_PARTITIONING=TRUE)
+       WHERE model_id IS NOT NULL
+         AND parameter IS NOT NULL
+         AND prediction IS NOT NULL",
+      path
     )
     
-    print("S3 filesystem created successfully")
+    DBI::dbExecute(con, sql_query)
     
-    # List files using FileSelector
-    selector <- FileSelector$create(
-      paste0(prefix, "/"),
-      recursive = TRUE,
-      file_type = "parquet"
-    )
+    # Write filtered data to local temporary parquet file
+    DBI::dbExecute(con, "COPY tmp_new_data TO 'tmp_new.parquet' (FORMAT PARQUET)")
     
-    files <- s3_fs$GetFileInfo(selector)
-    parquet_files <- files[!files$type == "Directory", ]
-    
-    if(length(parquet_files) == 0) {
-      stop("No parquet files found")
-    }
-    
-    print(paste("Found", length(parquet_files), "parquet files"))
-    
-    # Create full S3 URIs
-    file_paths <- paste0("s3://", bucket, "/", parquet_files$path)
-    
-    # Read all files into a single dataset
-    ds <- open_dataset(
-      file_paths,
-      filesystem = s3_fs,
-      partitioning = hive_partitioning(),
-      format = "parquet"
-    )
-    
-    # Filter
-    filtered <- ds %>%
-      filter(!is.na(model_id),
-             !is.na(parameter),
-             !is.na(prediction))
-    
-    print(paste("Filtered dataset has", nrow(filtered), "rows"))
-    
-    # Create bundled path
-    bundled_prefix <- str_replace(prefix, fixed("/parquet"), "/bundled-parquet")
-    
-    # Check if bundled file already exists
-    bundled_exists <- tryCatch({
-      bundled_selector <- FileSelector$create(
-        paste0(bundled_prefix, "/"),
-        recursive = FALSE
-      )
-      length(s3_fs$GetFileInfo(bundled_selector)) > 0
-    }, error = function(e) FALSE)
-    
-    # Read existing bundled data if it exists
-    if(bundled_exists) {
-      old_ds <- open_dataset(
-        paste0("s3://", bucket, "/", bundled_prefix, "/"),
-        filesystem = s3_fs,
-        format = "parquet"
-      )
-      
-      # Combine (remove duplicates if needed)
-      filtered <- union_all(old_ds, filtered)
-      print("Merged with existing bundled data")
-    }
-    
-    # Write as single parquet file (no partitioning)
-    output_path <- paste0("s3://", bucket, "/", bundled_prefix, "/bundled.parquet")
-    
-    write_dataset(
-      filtered,
-      output_path,
-      filesystem = s3_fs,
-      format = "parquet"
-    )
-    
-    print(paste("Bundled data written to:", output_path))
-    
-    return(TRUE)
+    print('Created tmp_new.parquet')
     
   }, error = function(e) {
-    print(paste("Error:", e$message))
-    stop("Failed to bundle data")
+    # Fallback: Use old approach
+    print(paste("Error with DuckDB approach:", e$message))
+    print("Trying arrow/dplyr approach...")
+    
+    open_dataset(path, partitioning = hive_partitioning()) |>
+      filter(!is.na(model_id),
+             !is.na(parameter),
+             !is.na(prediction)) |>
+      write_dataset("tmp_new.parquet")
   })
+  
+  # Check for existing bundled data
+  old <- tryCatch({
+    # Try to read existing bundled data
+    sql_query_old <- sprintf(
+      "CREATE OR REPLACE TABLE tmp_old AS 
+       SELECT * FROM read_parquet('%s*.parquet')",
+      bundled_path
+    )
+    
+    DBI::dbExecute(con, sql_query_old)
+    
+    # Write old data to local file for arrow to read
+    DBI::dbExecute(con, "COPY tmp_old TO 'tmp_old.parquet' (FORMAT PARQUET)")
+    
+    open_dataset("tmp_old.parquet")
+  }, error = function(e) {
+    print(paste("No existing bundled data:", e$message))
+    NULL
+  })
+  
+  # Load new data
+  new <- open_dataset("tmp_new.parquet")
+  
+  # Merge if old exists
+  if(!is.null(old)) {
+    new <- union(old, new)
+    print("Merged with existing bundled data")
+  }
+  
+  # Write merged data to bundled path
+  new |>
+    write_dataset(bundled_path,
+                  options = list("PER_THREAD_OUTPUT" = FALSE))
+  
+  print(paste('Wrote merged data to:', bundled_path))
+  
+  # Archive original data
+  mc_path <- path |> str_replace(fixed("s3://"), "osn/")
+  dest_path <- mc_path |>
+    str_replace(fixed("/parquet/"), "/archive-parquet/")
+  
+  if(mc_dir_exists(mc_path)) {
+    mc_mv(mc_path, dest_path, recursive = TRUE)
+    print('Archived original data')
+  }
+  
+  # Clean up temporary files
+  if(file.exists("tmp_new.parquet")) unlink("tmp_new.parquet")
+  if(file.exists("tmp_old.parquet")) unlink("tmp_old.parquet")
+  
+  invisible(path)
 }
 
 bundle_me_minio <- function(path) {
