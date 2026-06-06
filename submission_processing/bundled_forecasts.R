@@ -92,6 +92,13 @@ print(count)
 # nrow(x)
 # names(x)
 
+# Configure Arrow
+Sys.setenv(
+  AWS_ACCESS_KEY_ID = Sys.getenv("OSN_KEY"),
+  AWS_SECRET_ACCESS_KEY = Sys.getenv("OSN_SECRET"),
+  AWS_S3_ENDPOINT = paste0("https://", config$submissions_endpoint)
+)
+
 # Create one dataset per model path
 for (path in model_paths) {
   print(path)
