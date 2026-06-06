@@ -118,17 +118,38 @@ try({
   print(fs$ls("bu4cast-ci-write"))
   print("fs worked!")
   
-  # Now try open_dataset with explicit filesystem
-  df <- open_dataset(
-    "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/",
-    format = "parquet",
-    partitioning = hive_partitioning(),
-    filesystem = fs  # Pass the filesystem explicitly
-  ) %>%
-    collect()
+  # Test 1: Read a single parquet file (no hive partitioning)
+  try({
+    df_single <- read_parquet(
+      "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/reference_date=2025-07-01/data.parquet",
+      filesystem = fs
+    )
+    print("read_parquet worked!")
+    print(head(df_single))
+  })
   
-  print("open_dataset worked!")
-  print(head(df))
+  # Test 2: Try open_dataset WITHOUT hive_partitioning first
+  try({
+    df_basic <- open_dataset(
+      "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/",
+      format = "parquet",
+      filesystem = fs
+    ) %>%
+      collect()
+    print("open_dataset (no hive) worked!")
+  })
+  
+  # Test 3: Add hive_partitioning back
+  try({
+    df_hive <- open_dataset(
+      "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/",
+      format = "parquet",
+      partitioning = hive_partitioning(),
+      filesystem = fs
+    ) %>%
+      collect()
+    print("open_dataset (with hive) worked!")
+  })
 })
 
 # Create one dataset per model path
