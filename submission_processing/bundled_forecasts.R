@@ -143,7 +143,7 @@ for (path in model_paths) {
   })
 
   # Load all old data from parquet
-  tryCatch({
+  tmp_old <- tryCatch({
     # Read all parquet files with hive partitioning
     query_old <- sprintf("
       SELECT *
@@ -153,15 +153,47 @@ for (path in model_paths) {
     tmp_old <- dbGetQuery(con, query_old)
     print(paste("Read", nrow(tmp_old), "rows"))
     print(paste("Columns:", paste(colnames(tmp_old), collapse = ", ")))
+
+    # Return data
+    tmp_old
     
   },
   error = function(e) {
     print(paste("No new data for ", s3_query_bundled_path))
-    return(NULL)
-  }
-)
+    NULL
+  })
   
+  # Combine if old data was found
+  if(!is.null(old)) {
+    bundled_dir <- bundled_path |> str_replace(fixed("s3://"), "osn/") |> mc_ls(details = TRUE)
+    mc_bundled_path <- bundled_dir |> filter(!is_folder) |> pull(path)
+    stopifnot(length(mc_bundled_path) == 1)
+    bundled_path <- mc_bundled_path |> str_replace(fixed("osn/"), fixed("s3://"))
+  
+    new <- union(tmp_old, tmp_new)
+  } else {
+    new <- tmp_new
+  }
+
+  # Write data to bundled
+  new |> write_dataset(bundled_path, options = list("PER_THREAD_OUTPUT false"))
+
+  # Create archived parquet
+  mc_path <- path |> str_replace(fixed("s3://"), "osn/")
+  dest_path <- mc_path |> str_replace(fixed("/parquet"), "/archive-parquet")
+  mc_mv(mc_path, dest_path, recursive = TRUE)
+
+  # clears up empty folders (not necessary?)
+  mc_rm(mc_path, recursive = TRUE)
 }
+
+print("For Loop Complete")
+                     
+# Bundled count at end
+bundled_remote_path <- paste0("osn/", forecast_bundled_parquet_bucket)
+bundled_contents <- mc_ls(bundled_remote_path, recursive = TRUE, details = TRUE)
+count <- if (nrow(bundled_contents) == 0) 0 else sum(!bundled_contents$is_folder)
+print(count)
 
 bundle_me <- function(path) {
   
