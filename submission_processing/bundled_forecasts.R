@@ -113,28 +113,53 @@ dbExecute(con, sprintf("
 
 # Loop through each model path
 for (path in model_paths) {
+
+  # Prep paths
   print(paste("Processing:", path))
+  bundled_path <- path |> str_replace(fixed("forecasts/parquet"), "forecasts/bundled-parquet")
+  print(paste("Bundled Path:", bundled_path)
   
-  # Build S3 query pattern
+  # Build S3 query paths
   s3_query_path <- paste0(path, "**/*.parquet")
-  
+  s3_query_bundled_path <- paste0(bundled_path, "**/*.parquet")
+
+  # Load all new data from parquet
   tryCatch({
     # Read all parquet files with hive partitioning
     query <- sprintf("
       SELECT *
       FROM read_parquet('%s', hive_partitioning = true)
+      WHERE model_id IS NOT NULL
+      AND parameter IS NOT NULL
+      AND prediction IS NOT NULL
     ", s3_query_path)
     
-    df <- dbGetQuery(con, query)
-    print(paste("Read", nrow(df), "rows"))
-    print(paste("Columns:", paste(colnames(df), collapse = ", ")))
-    
-    # Now do whatever processing you need on df
-    # df_processed <- df %>% filter(...) %>% mutate(...)
+    tmp_new <- dbGetQuery(con, query)
+    print(paste("Read", nrow(tmp_new), "rows"))
+    print(paste("Columns:", paste(colnames(tmp_new), collapse = ", ")))
     
   }, error = function(e) {
-    print(paste("Error reading", path, ":", e$message))
+    print(paste("Error reading new path ", path, ":", e$message))
   })
+
+  # Load all old data from parquet
+  tryCatch({
+    # Read all parquet files with hive partitioning
+    query_old <- sprintf("
+      SELECT *
+      FROM read_parquet('%s', hive_partitioning = true)
+    ", s3_query_bundled_path)
+    
+    tmp_old <- dbGetQuery(con, query_old)
+    print(paste("Read", nrow(tmp_old), "rows"))
+    print(paste("Columns:", paste(colnames(tmp_old), collapse = ", ")))
+    
+  },
+  # no new data
+  error = function(e) NULL
+  print(paste("No new data for ", s3_query_bundled_path))
+  )
+  
 }
 
 bundle_me <- function(path) {
