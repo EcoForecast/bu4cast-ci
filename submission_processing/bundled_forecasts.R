@@ -119,14 +119,14 @@ try({
   print("fs worked!")
   
   # Test 1: Read a single parquet file (no hive partitioning)
-  try({
-    df_single <- read_parquet(
-      "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/reference_date=2025-07-01/data.parquet",
-      filesystem = fs
-    )
-    print("read_parquet worked!")
-    print(head(df_single))
-  })
+  # try({
+  #   df_single <- read_parquet(
+  #     "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/reference_date=2025-07-01/data.parquet",
+  #     filesystem = fs
+  #   )
+  #   print("read_parquet worked!")
+  #   print(head(df_single))
+  # })
   
   # Test 2: Try open_dataset WITHOUT hive_partitioning first
   try({
