@@ -99,7 +99,7 @@ for (path in model_paths) {
   df <- open_dataset(
     path,
     format = "parquet",
-    hive_partitioning = TRUE
+    partitioning = hive_partitioning()
   ) %>%
     collect()
 }
