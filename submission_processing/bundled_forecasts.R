@@ -117,7 +117,7 @@ for (path in model_paths) {
   # Prep paths
   print(paste("Processing:", path))
   bundled_path <- path |> str_replace(fixed("forecasts/parquet"), "forecasts/bundled-parquet")
-  print(paste("Bundled Path:", bundled_path)
+  print(paste("Bundled Path:", bundled_path))
   
   # Build S3 query paths
   s3_query_path <- paste0(path, "**/*.parquet")
