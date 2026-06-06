@@ -306,73 +306,139 @@ bundle_me_minio <- function(path) {
   })
 }
 
+library(dplyr)
+library(stringr)
+
 bundle_me_simple <- function(path) {
-  library(arrow)
-  library(dplyr)
   
   print(paste("Processing:", path))
   
-  # Set up S3 credentials for arrow
-  key_id <- Sys.getenv("OSN_KEY", "")
-  secret <- Sys.getenv("OSN_SECRET", "")
-  
-  # Register S3 configuration globally
-  Sys.setenv(
-    AWS_S3_ENDPOINT = "minio-s3.apps.shift.nerc.mghpcc.org",
-    AWS_ACCESS_KEY_ID = key_id,
-    AWS_SECRET_ACCESS_KEY = secret,
-    AWS_REGION = "us-east-1",
-    AWS_DEFAULT_REGION = "us-east-1"
-  )
+  # Convert S3 path to mc path
+  mc_path <- str_replace(path, fixed("s3://"), "osn/")
   
   # Create bundled path
   bundled_path <- str_replace(path, fixed("/parquet"), "/bundled-parquet")
+  mc_bundled_path <- str_replace(bundled_path, fixed("s3://"), "osn/")
   
-  print("Reading source data...")
+  print(paste("MC Path:", mc_path))
   
-  # Read the dataset directly with arrow
-  # Arrow will automatically handle hive partitioning
-  ds <- open_dataset(
-    path,
-    partitioning = hive_partitioning(),
-    format = "parquet"
-  )
+  # List all parquet files
+  all_items <- mc_ls(mc_path, recursive = TRUE, details = TRUE)
   
-  print(paste("Dataset opened. Schema:", paste(names(ds), collapse = ", ")))
+  # Filter for parquet files
+  parquet_files <- all_items %>%
+    filter(str_detect(name, "\\.parquet$")) %>%
+    filter(!is_folder) %>%
+    pull(path)
   
-  # Filter
-  filtered <- ds %>%
-    filter(!is.na(model_id),
-           !is.na(parameter),
-           !is.na(prediction))
-  
-  # Count rows to see if we got data
-  row_count <- filtered %>% count() %>% collect() %>% pull(n)
-  print(paste("Filtered to", row_count, "rows"))
-  
-  # Check if bundled data exists
-  bundled_exists <- tryCatch({
-    test_ds <- open_dataset(bundled_path, format = "parquet")
-    TRUE
-  }, error = function(e) FALSE)
-  
-  if(bundled_exists) {
-    old_ds <- open_dataset(bundled_path, format = "parquet")
-    filtered <- union_all(old_ds, filtered)
-    print("Merged with existing bundled data")
+  if(length(parquet_files) == 0) {
+    stop("No parquet files found")
   }
   
-  # Write bundled data
-  print(paste("Writing to:", bundled_path))
+  print(paste("Found", length(parquet_files), "parquet files"))
   
-  write_dataset(
-    filtered,
-    bundled_path,
-    format = "parquet",
-    partitioning = NULL  # Single file
-  )
+  # Process files in batches to avoid memory issues
+  batch_size <- 10
+  all_data <- list()
   
-  print("Bundle complete")
+  for(i in seq(1, length(parquet_files), batch_size)) {
+    batch_end <- min(i + batch_size - 1, length(parquet_files))
+    batch_files <- parquet_files[i:batch_end]
+    
+    print(paste("Processing batch", ceiling(i/batch_size), 
+                "files", i, "to", batch_end))
+    
+    # Download and process batch
+    batch_data <- lapply(batch_files, function(mc_file) {
+      # Create temp file
+      temp_file <- tempfile(fileext = ".parquet")
+      
+      # Download
+      mc_cp(mc_file, temp_file)
+      
+      # Read with arrow
+      tryCatch({
+        df <- arrow::read_parquet(temp_file)
+        
+        # Filter
+        df_filtered <- df %>%
+          filter(!is.na(model_id),
+                 !is.na(parameter),
+                 !is.na(prediction))
+        
+        # Clean up
+        unlink(temp_file)
+        
+        return(df_filtered)
+      }, error = function(e) {
+        print(paste("Error reading", mc_file, ":", e$message))
+        unlink(temp_file)
+        return(NULL)
+      })
+    })
+    
+    # Remove NULLs and combine
+    batch_data <- batch_data[!sapply(batch_data, is.null)]
+    if(length(batch_data) > 0) {
+      all_data <- c(all_data, batch_data)
+    }
+  }
+  
+  if(length(all_data) == 0) {
+    stop("No valid data found in any files")
+  }
+  
+  # Combine all data
+  combined <- bind_rows(all_data)
+  
+  print(paste("Combined data has", nrow(combined), "rows"))
+  
+  # Check for existing bundled data
+  existing_files <- tryCatch({
+    mc_ls(mc_bundled_path, details = TRUE) %>%
+      filter(str_detect(name, "\\.parquet$")) %>%
+      filter(!is_folder) %>%
+      pull(path)
+  }, error = function(e) {
+    character()
+  })
+  
+  # Read and merge existing data if any
+  if(length(existing_files) > 0) {
+    print(paste("Found", length(existing_files), "existing bundled files"))
+    
+    existing_data <- lapply(existing_files, function(mc_file) {
+      temp_file <- tempfile(fileext = ".parquet")
+      mc_cp(mc_file, temp_file)
+      df <- arrow::read_parquet(temp_file)
+      unlink(temp_file)
+      return(df)
+    })
+    
+    existing_combined <- bind_rows(existing_data)
+    combined <- bind_rows(existing_combined, combined)
+    
+    print(paste("After merging with existing:", nrow(combined), "rows"))
+  }
+  
+  # Create bundled directory if it doesn't exist
+  if(!mc_dir_exists(mc_bundled_path)) {
+    mc_mkdir(mc_bundled_path, recursive = TRUE)
+  }
+  
+  # Write to local temp file
+  temp_output <- tempfile(fileext = ".parquet")
+  arrow::write_parquet(combined, temp_output)
+  
+  # Upload to S3
+  mc_output_path <- paste0(mc_bundled_path, "bundled.parquet")
+  mc_cp(temp_output, mc_output_path)
+  
+  print(paste("Uploaded bundled data to:", mc_output_path))
+  
+  # Clean up
+  unlink(temp_output)
+  
   return(TRUE)
 }
 
@@ -542,7 +608,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me_minio(x)
+    out <- bundle_me_simple(x)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
