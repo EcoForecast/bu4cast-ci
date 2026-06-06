@@ -39,29 +39,29 @@ minioclient::mc_alias_set("osn",
 print('mc access works')
 
 # Connect to DuckDB - helps write to S3 bucket
-key_id   <- Sys.getenv("OSN_KEY", "")
-secret   <- Sys.getenv("OSN_SECRET", "")
+# key_id   <- Sys.getenv("OSN_KEY", "")
+# secret   <- Sys.getenv("OSN_SECRET", "")
 
-conn <- dbConnect(duckdb())
-DBI::dbExecute(conn, "INSTALL httpfs;")
-DBI::dbExecute(conn, "LOAD httpfs;")
+# conn <- dbConnect(duckdb())
+# DBI::dbExecute(conn, "INSTALL httpfs;")
+# DBI::dbExecute(conn, "LOAD httpfs;")
 
-sql <- sprintf("
-  CREATE OR REPLACE SECRET s3_minio_osn (
-    TYPE S3,
-    KEY_ID '%s',
-    SECRET '%s',
-    ENDPOINT 'https://minio-s3.apps.shift.nerc.mghpcc.org',
-    REGION 'us-east-1',
-    USE_SSL = true,
-    URL_STYLE = 'path'
-  )
-", key_id, secret)
+# sql <- sprintf("
+#   CREATE OR REPLACE SECRET s3_minio_osn (
+#     TYPE S3,
+#     KEY_ID '%s',
+#     SECRET '%s',
+#     ENDPOINT 'https://minio-s3.apps.shift.nerc.mghpcc.org',
+#     REGION 'us-east-1',
+#     USE_SSL = true,
+#     URL_STYLE = 'path'
+#   )
+# ", key_id, secret)
 
-DBI::dbExecute(conn, sql)
+# DBI::dbExecute(conn, sql)
 
 #duckdb_secrets(endpoint = config$submissions_endpoint , key = Sys.getenv("OSN_KEY"), secret = Sys.getenv("OSN_SECRET"), bucket = forecasts_bucket_base)
-print('duckdb access works')
+#print('duckdb access works')
 
 remote_path <- paste0("osn/", forecast_parquet_bucket)
 contents <- mc_ls(remote_path, recursive = TRUE, details = TRUE)
@@ -93,16 +93,33 @@ print(count)
 # nrow(x)
 # names(x)
 
-# Now try reading with hive partitioning
+library(duckdb)
+
+con <- dbConnect(duckdb())
+
+# Correct DuckDB CREATE SECRET syntax
+dbExecute(con, sprintf("
+  CREATE SECRET s3_secret (
+    TYPE S3,
+    KEY_ID = '%s',
+    SECRET = '%s',
+    ENDPOINT = 'minio-s3.apps.shift.nerc.mghpcc.org',
+    USE_SSL = true,
+    URL_STYLE = 'path'
+  )
+", Sys.getenv("OSN_KEY"), Sys.getenv("OSN_SECRET")))
+
+# Test read
 query <- "
-  SELECT *, reference_date
+  SELECT *
   FROM read_parquet(
     's3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/**/*.parquet',
-    hive_partitioning = TRUE
+    hive_partitioning = true
   )
+  LIMIT 5
 "
 
-df <- dbGetQuery(conn, query)
+df <- dbGetQuery(con, query)
 print(head(df))
 
 bundle_me <- function(path) {
