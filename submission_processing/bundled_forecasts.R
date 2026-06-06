@@ -96,8 +96,40 @@ print(count)
 Sys.setenv(
   AWS_ACCESS_KEY_ID = Sys.getenv("OSN_KEY"),
   AWS_SECRET_ACCESS_KEY = Sys.getenv("OSN_SECRET"),
-  AWS_S3_ENDPOINT = paste0("https://", config$submissions_endpoint)
+  AWS_S3_ENDPOINT = "minio-s3.apps.shift.nerc.mghpcc.org",  # Try WITHOUT https://
+  AWS_VIRTUAL_HOSTED_STYLE = "FALSE",  # Force path-style addressing
+  AWS_ALLOW_HTTP = "FALSE"
 )
+
+# Test the connection directly
+library(arrow)
+
+test_path <- "s3://bu4cast-ci-write/challenges/project_id=bu4cast/forecasts/"
+
+# If the fs$ls() worked, try reading a single parquet file
+try({
+  fs <- S3FileSystem$create(
+    access_key = Sys.getenv("OSN_KEY"),
+    secret_key = Sys.getenv("OSN_SECRET"),
+    endpoint_override = "minio-s3.apps.shift.nerc.mghpcc.org"
+  )
+  
+  # List to confirm connection
+  print(fs$ls("bu4cast-ci-write"))
+  print("fs worked!")
+  
+  # Now try open_dataset with explicit filesystem
+  df <- open_dataset(
+    "s3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/",
+    format = "parquet",
+    partitioning = hive_partitioning(),
+    filesystem = fs  # Pass the filesystem explicitly
+  ) %>%
+    collect()
+  
+  print("open_dataset worked!")
+  print(head(df))
+})
 
 # Create one dataset per model path
 for (path in model_paths) {
