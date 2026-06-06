@@ -914,6 +914,155 @@ test_bundle_debug <- function(path) {
   }
 }
 
+# SIMPLE WORKING SOLUTION
+bundle_me_simple_working <- function(path) {
+  
+  print(paste("Processing:", path))
+  
+  # 1. Convert to mc path
+  mc_path <- str_replace(path, fixed("s3://"), "osn/")
+  
+  # 2. Ensure it ends with /
+  if(!str_ends(mc_path, "/")) {
+    mc_path <- paste0(mc_path, "/")
+  }
+  
+  # 3. Create bundled path
+  mc_bundled_path <- str_replace(mc_path, fixed("/parquet/"), "/bundled-parquet/")
+  
+  print(paste("Source MC path:", mc_path))
+  print(paste("Bundled MC path:", mc_bundled_path))
+  
+  # 4. List files using mc_ls - it returns character vector of relative paths
+  all_files <- mc_ls(mc_path, recursive = TRUE)
+  
+  if(length(all_files) == 0) {
+    stop("No files found in directory")
+  }
+  
+  # 5. Filter for parquet files
+  parquet_files <- all_files[grepl("\\.parquet$", all_files)]
+  
+  if(length(parquet_files) == 0) {
+    stop("No parquet files found")
+  }
+  
+  print(paste("Found", length(parquet_files), "parquet files"))
+  
+  # 6. IMPORTANT: mc_ls returns RELATIVE paths like "reference_date=2025-07-01/data_0.parquet"
+  #    We need to prepend the source directory path
+  full_parquet_paths <- paste0(mc_path, parquet_files)
+  
+  # 7. Process files
+  all_data <- list()
+  
+  for(i in seq_along(full_parquet_paths)) {
+    mc_file <- full_parquet_paths[i]
+    
+    if(i <= 3) {
+      print(paste("Sample file path:", mc_file))
+    }
+    
+    tryCatch({
+      # Download to temp file
+      temp_file <- tempfile(fileext = ".parquet")
+      mc_cp(mc_file, temp_file)
+      
+      # Read with arrow
+      df <- arrow::read_parquet(temp_file)
+      
+      # Filter for required columns
+      if(all(c("model_id", "parameter", "prediction") %in% names(df))) {
+        df_filtered <- df %>%
+          filter(!is.na(model_id),
+                 !is.na(parameter),
+                 !is.na(prediction))
+        
+        if(nrow(df_filtered) > 0) {
+          all_data[[length(all_data) + 1]] <- df_filtered
+        }
+      }
+      
+      unlink(temp_file)
+      
+    }, error = function(e) {
+      print(paste("Error processing file:", e$message))
+    })
+  }
+  
+  if(length(all_data) == 0) {
+    stop("No valid data found after filtering")
+  }
+  
+  # 8. Combine all data
+  combined <- bind_rows(all_data)
+  print(paste("Combined data rows:", nrow(combined)))
+  
+  # 9. Check for existing bundled data
+  tryCatch({
+    existing_files <- mc_ls(mc_bundled_path, recursive = FALSE)
+    existing_parquet <- existing_files[grepl("\\.parquet$", existing_files)]
+    
+    if(length(existing_parquet) > 0) {
+      print(paste("Found", length(existing_parquet), "existing bundled files"))
+      
+      existing_data <- list()
+      for(existing_file in existing_parquet) {
+        tryCatch({
+          full_existing_path <- paste0(mc_bundled_path, existing_file)
+          temp_file <- tempfile(fileext = ".parquet")
+          
+          mc_cp(full_existing_path, temp_file)
+          df <- arrow::read_parquet(temp_file)
+          
+          if(all(c("model_id", "parameter", "prediction") %in% names(df))) {
+            existing_data[[length(existing_data) + 1]] <- df
+          }
+          
+          unlink(temp_file)
+        }, error = function(e) {
+          print(paste("Error reading existing:", e$message))
+        })
+      }
+      
+      if(length(existing_data) > 0) {
+        existing_combined <- bind_rows(existing_data)
+        combined <- bind_rows(existing_combined, combined)
+        print(paste("After merging with existing:", nrow(combined), "rows"))
+      }
+    }
+  }, error = function(e) {
+    print("No existing bundled data found")
+  })
+  
+  # 10. Create bundled directory if needed
+  if(!mc_dir_exists(mc_bundled_path)) {
+    mc_mkdir(mc_bundled_path, recursive = TRUE)
+    print(paste("Created directory:", mc_bundled_path))
+  }
+  
+  # 11. Write bundled data
+  temp_output <- tempfile(fileext = ".parquet")
+  arrow::write_parquet(combined, temp_output)
+  
+  # Upload to bundled location
+  mc_output <- paste0(mc_bundled_path, "bundled.parquet")
+  mc_cp(temp_output, mc_output)
+  
+  print(paste("Successfully created bundled file:", mc_output))
+  print(paste("File size:", file.size(temp_output), "bytes"))
+  
+  # Clean up
+  unlink(temp_output)
+  
+  return(TRUE)
+}
+
+# Run it
+print("Running result")
+result <- bundle_me_simple_working(model_paths[1])
+print("Result ran")
+
 # We use future_apply framework to show progress while being robust to OOM kils.
 # We are not actually running on multi-core, which would be RAM-inefficient
 future::plan(future::sequential)
