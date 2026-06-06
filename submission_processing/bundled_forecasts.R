@@ -96,6 +96,8 @@ print(count)
 library(duckdb)
 
 con <- dbConnect(duckdb())
+DBI::dbExecute(con, "INSTALL httpfs;")
+DBI::dbExecute(con, "LOAD httpfs;")
 
 # Correct DuckDB CREATE SECRET syntax (no = signs)
 dbExecute(con, sprintf("
