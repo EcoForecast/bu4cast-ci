@@ -116,7 +116,7 @@ for (path in model_paths) {
 
   # Prep paths
   print(paste("Processing:", path))
-  bundled_path <- path |> str_replace(fixed("forecasts/parquet"), "forecasts/bundled-parquet")
+  bundled_path <- path |> str_replace(fixed("/parquet"), "/bundled-parquet")
   print(paste("Bundled Path:", bundled_path))
   
   # Build S3 query paths
@@ -1125,48 +1125,48 @@ bundle_me_simple_working <- function(path) {
   return(TRUE)
 }
 
-# Run it
-print("Running result")
-result <- bundle_me_simple_working(model_paths[1])
-print("Result ran")
+# # Run it
+# print("Running result")
+# result <- bundle_me_simple_working(model_paths[1])
+# print("Result ran")
 
 # We use future_apply framework to show progress while being robust to OOM kils.
 # We are not actually running on multi-core, which would be RAM-inefficient
 future::plan(future::sequential)
 
-safe_bundles <- function(xs) {
-  p <- progressor(along = xs)
-  future_lapply(xs, function(x, ...) {
-    out <- test_bundle_debug(x)
-    p(sprintf("x=%s", x))
-    out
-  },  future.seed = TRUE)
-}
+# safe_bundles <- function(xs) {
+#   p <- progressor(along = xs)
+#   future_lapply(xs, function(x, ...) {
+#     out <- test_bundle_debug(x)
+#     p(sprintf("x=%s", x))
+#     out
+#   },  future.seed = TRUE)
+# }
 
 
-bench::bench_time({
-  out <- safe_bundles(model_paths)
-})
-# print(out)
-
-
-
-# bundled count at end
-count <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
-                      s3_endpoint = config$endpoint,
-                      anonymous = TRUE) |>
-  count()
-print(count)
+# bench::bench_time({
+#   out <- safe_bundles(model_paths)
+# })
+# # print(out)
 
 
 
-most_recent <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
-             s3_endpoint = config$endpoint,
-             anonymous = TRUE) |>
-  group_by(model_id, variable) |>
-  summarise(most_recent = max(reference_datetime)) |>
-  arrange(desc(most_recent))
-print(most_recent)
+# # bundled count at end
+# count <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
+#                       s3_endpoint = config$endpoint,
+#                       anonymous = TRUE) |>
+#   count()
+# print(count)
+
+
+
+# most_recent <- open_dataset(paste0("s3://", forecast_bundled_parquet_bucket),
+#              s3_endpoint = config$endpoint,
+#              anonymous = TRUE) |>
+#   group_by(model_id, variable) |>
+#   summarise(most_recent = max(reference_datetime)) |>
+#   arrange(desc(most_recent))
+# print(most_recent)
 
 
 
