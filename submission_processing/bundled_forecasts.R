@@ -111,18 +111,31 @@ dbExecute(con, sprintf("
   )
 ", Sys.getenv("OSN_KEY"), Sys.getenv("OSN_SECRET")))
 
-# Test read
-query <- "
-  SELECT *
-  FROM read_parquet(
-    's3://bu4cast-ci-write/challenges/project_id=bu4cast/parquet/project_id=bu4cast/duration=P1H/variable=PM2.5_P1H/model_id=tg_dgam/**/*.parquet',
-    hive_partitioning = true
-  )
-  LIMIT 5
-"
-
-df <- dbGetQuery(con, query)
-print(head(df))
+# Loop through each model path
+for (path in model_paths) {
+  print(paste("Processing:", path))
+  
+  # Build S3 query pattern
+  s3_query_path <- paste0(path, "**/*.parquet")
+  
+  tryCatch({
+    # Read all parquet files with hive partitioning
+    query <- sprintf("
+      SELECT *
+      FROM read_parquet('%s', hive_partitioning = true)
+    ", s3_query_path)
+    
+    df <- dbGetQuery(con, query)
+    print(paste("Read", nrow(df), "rows"))
+    print(paste("Columns:", paste(colnames(df), collapse = ", ")))
+    
+    # Now do whatever processing you need on df
+    # df_processed <- df %>% filter(...) %>% mutate(...)
+    
+  }, error = function(e) {
+    print(paste("Error reading", path, ":", e$message))
+  })
+}
 
 bundle_me <- function(path) {
   
