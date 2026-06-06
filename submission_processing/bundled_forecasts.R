@@ -840,6 +840,79 @@ bundle_me_robust <- function(path) {
   return(TRUE)
 }
 
+# Debug version to understand the paths
+test_bundle_debug <- function(path) {
+  
+  print(paste("Original path:", path))
+  
+  # Convert S3 path to mc path
+  mc_path <- str_replace(path, fixed("s3://"), "osn/")
+  
+  print(paste("MC Path:", mc_path))
+  
+  # List with and without trailing slash
+  mc_path_with_slash <- paste0(mc_path, "/")
+  
+  print("Testing mc_ls...")
+  
+  # Test 1: Without trailing slash
+  result1 <- mc_ls(mc_path, recursive = TRUE)
+  print(paste("Result 1 (no trailing slash):", length(result1), "items"))
+  if(length(result1) > 0) {
+    print("First 3 items:")
+    print(head(result1, 3))
+  }
+  
+  # Test 2: With trailing slash
+  result2 <- mc_ls(mc_path_with_slash, recursive = TRUE)
+  print(paste("Result 2 (with trailing slash):", length(result2), "items"))
+  if(length(result2) > 0) {
+    print("First 3 items:")
+    print(head(result2, 3))
+  }
+  
+  # Test 3: Non-recursive
+  result3 <- mc_ls(mc_path_with_slash, recursive = FALSE)
+  print(paste("Result 3 (non-recursive):", length(result3), "items"))
+  if(length(result3) > 0) {
+    print("All items:")
+    print(result3)
+  }
+  
+  # Now test downloading one file
+  if(length(result1) > 0) {
+    # Take first parquet file
+    parquet_files <- result1[grepl("\\.parquet$", result1)]
+    
+    if(length(parquet_files) > 0) {
+      test_file <- parquet_files[1]
+      print(paste("Testing download of:", test_file))
+      
+      # Construct full path
+      full_test_path <- paste0(mc_path, "/", test_file)
+      print(paste("Full path:", full_test_path))
+      
+      temp_file <- tempfile(fileext = ".parquet")
+      
+      tryCatch({
+        mc_cp(full_test_path, temp_file)
+        print(paste("Download successful to:", temp_file))
+        
+        # Try to read
+        df <- arrow::read_parquet(temp_file)
+        print(paste("File read successfully. Columns:", 
+                    paste(names(df), collapse = ", ")))
+        print(paste("Rows:", nrow(df)))
+        
+        unlink(temp_file)
+        
+      }, error = function(e) {
+        print(paste("Error:", e$message))
+        unlink(temp_file)
+      })
+    }
+  }
+}
 
 # We use future_apply framework to show progress while being robust to OOM kils.
 # We are not actually running on multi-core, which would be RAM-inefficient
@@ -848,7 +921,7 @@ future::plan(future::sequential)
 safe_bundles <- function(xs) {
   p <- progressor(along = xs)
   future_lapply(xs, function(x, ...) {
-    out <- bundle_me_robust(x)
+    out <- test_bundle_debug(x)
     p(sprintf("x=%s", x))
     out
   },  future.seed = TRUE)
