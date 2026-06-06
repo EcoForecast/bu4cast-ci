@@ -155,10 +155,11 @@ for (path in model_paths) {
     print(paste("Columns:", paste(colnames(tmp_old), collapse = ", ")))
     
   },
-  # no new data
-  error = function(e) NULL
-  print(paste("No new data for ", s3_query_bundled_path))
-  )
+  error = function(e) {
+    print(paste("No new data for ", s3_query_bundled_path))
+    return(NULL)
+  }
+)
   
 }
 
