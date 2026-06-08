@@ -1,3 +1,7 @@
+# This worked one time, but for some reason doesn't seem to be working anymore 
+# I would test this more to understand why it's not working 
+# This is also now in a for loop, which is different from the original, which was in parallel
+
 remotes::install_github("cboettig/duckdbfs", upgrade=FALSE)
 
 library(tidyverse)
