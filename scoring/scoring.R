@@ -76,10 +76,16 @@ score_group <- function(i, groups, project = config$project_id) {
   path  <- glue::glue("s3://", scores_bundled_parquet_bucket,
                       "project_id={project}/duration={dur}/variable={var}/model_id={model}")
   path2 <- glue::glue("minio/", scores_bundled_parquet_bucket,
-                      "project_id={project}/duration={dur}/variable={var}/model_id={model}")
+                      "project_id={project}/duration={dur}/variable={var}/model_id={model}/")
 
   message(glue::glue("Joining to existing scores of variable {var} for model {model}"))
 
+  # mc_ls without a trailing slash does a prefix match against sibling
+  # entries rather than listing this exact folder's contents -- e.g.
+  # "model_id=tg_randforbuoy" (no slash) matches the sibling
+  # "model_id=tg_randforbuoystate/" as a false positive, wrongly reporting
+  # tg_randforbuoy has existing scores when it has none. The trailing slash
+  # above makes this an exact-directory listing.
   file_exist <- length(mc_ls(path2))
 
   if (file_exist > 0) {

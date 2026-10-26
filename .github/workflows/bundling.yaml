@@ -25,6 +25,8 @@ jobs:
           sudo sed -i '/r2u/d' /etc/apt/sources.list.d/*.list 2>/dev/null || true
           R -e "update.packages(ask=FALSE, checkBuilt=TRUE, lib='/usr/lib/R/site-library', repos='https://cloud.r-project.org')"
           R -e "options(repos = c(CRAN = 'https://cloud.r-project.org')); install.packages(c('future.apply', 'progressr', 'minioclient', 'bench', 'glue', 'fs', 'tidyverse', 'yaml', 'duckdb'))"
+          R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
+          R -e "remotes::install_github('cboettig/minioclient')"
 
       - name: Bundle forecasts
         run: r submission_processing/bundled_forecasts.R

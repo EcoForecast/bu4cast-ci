@@ -27,6 +27,7 @@ jobs:
       - name: Process submissions
         shell: Rscript {0}
         run: |
+          remotes::install_github("cboettig/minioclient", upgrade="never")
           remotes::install_github("cboettig/duckdbfs", upgrade="never")
           remotes::install_github("eco4cast/neon4cast")          
           remotes::install_github("eco4cast/score4cast")

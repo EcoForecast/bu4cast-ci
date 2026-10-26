@@ -11,7 +11,15 @@ library(minioclient)
 library(DBI)
 
 con <- duckdbfs::cached_connection(tempfile())
-DBI::dbExecute(con, "SET THREADS=64;")
+# ubuntu-latest GH-hosted runners have 4 vCPUs / 16GB RAM -- 64 threads here
+# was a large oversubscription (each thread reserves its own working buffers),
+# which was almost certainly OOM-killing the runner mid-write on the
+# forecasts/scores/targets write_dataset() calls (exit 141 / broken pipe,
+# with no output at all from inside that step -- consistent with a kill
+# mid-operation rather than a query error). memory_limit caps usage so
+# DuckDB spills to disk instead of exceeding the runner's RAM.
+DBI::dbExecute(con, "SET THREADS=4;")
+DBI::dbExecute(con, "SET memory_limit='12GB';")
 
 setup_s3 <- function(con) {
   DBI::dbExecute(con, paste0("SET s3_access_key_id='", Sys.getenv("OSN_KEY"), "';"))

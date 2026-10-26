@@ -31,6 +31,7 @@ jobs:
           R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
           R -e "remotes::install_github('eco4cast/score4cast')"
           R -e "options(repos = c(CRAN = 'https://cloud.r-project.org')); install.packages(c('bench', 'duckdbfs', 'minioclient', 'callr'))"
+          R -e "remotes::install_github('cboettig/minioclient')"
           
       - name: scoring-prep
         run: r scoring/prep-scoring.R

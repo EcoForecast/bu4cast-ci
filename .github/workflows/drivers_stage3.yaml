@@ -17,7 +17,13 @@ jobs:
       options: --memory 45g
     steps:
       - uses: actions/checkout@v4
-
+      
+      - name: Install
+        shell: Rscript {0}
+        run: |
+          install.packages("gdalcubes")
+          remotes::install_github("cboettig/minioclient", upgrade = "never")
+          
       - name: Download Pseudo
         shell: Rscript {0}
         run: |

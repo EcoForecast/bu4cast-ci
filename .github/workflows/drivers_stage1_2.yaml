@@ -22,7 +22,8 @@ jobs:
       - name: Install
         shell: Rscript {0}
         run: |
-          remotes::install_version('arrow', version = '20.0.0')
+          install.packages("gdalcubes")
+          remotes::install_github("cboettig/minioclient", upgrade = "never")
 
       - name: Update GEFS
         shell: Rscript {0}
